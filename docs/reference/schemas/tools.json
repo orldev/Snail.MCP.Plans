@@ -1,0 +1,199 @@
+[
+  {
+    "name": "create_plan",
+    "description": "Draft the plan BEFORE starting a task of more than one step: the objective, then the steps in the\norder they are to be walked. Answers with the plan and the id of every step \u2014 those ids are what\nupdate_step takes.\nOne active plan per project: called while one is already active, it answers with that plan instead\nof drafting a second, so a retried call never leaves two behind.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "objective": {
+          "description": "What the work is meant to achieve. Immutable once the plan exists.",
+          "type": "string"
+        },
+        "steps": {
+          "description": "The steps, in the order they are to be walked.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "projectName": {
+          "description": "Project the plan belongs to. Empty \u2014 the folder this server runs in, which is the usual answer.",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "required": [
+        "objective",
+        "steps"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "get_current_plan",
+    "description": "The plan this agent is working on: the objective, where it stands, and every step with its status\nand id. Needs no arguments \u2014 it answers by the identity of this server process.\nCall it at the start of a session and after losing context, before drafting anything: the plan you\ncannot remember is still here, and drafting a second one for the same work loses the first.\nPass \u0027planId\u0027 to read any plan, including one another agent walks \u2014 that is how you look at a plan\nfrom a different folder, which list_active_plans only summarises. Never call create_plan just to\nlook: it leaves a second plan behind.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectName": {
+          "description": "Project the plan belongs to. Empty \u2014 the folder this server runs in, which is the usual answer.",
+          "type": "string",
+          "default": ""
+        },
+        "planId": {
+          "description": "Read this plan instead, by its id \u2014 works for any agent\u0027s plan, read-only.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true
+    },
+    "skill": null
+  },
+  {
+    "name": "update_step",
+    "description": "Report a step and receive the next one. Call it when you start a step, and again the moment it\nends \u2014 the answer carries the new progress and the next Pending step, so this replaces asking what\nto do next.\nStatus is one of: Pending (not started), InProgress (taken up \u2014 counts an attempt), Done\n(finished), Failed (attempted, did not work \u2014 may be attempted again), Skipped (deliberately not\ndone, and then a note saying why is required).\nA plan runs one step at a time: report the step in progress before taking up another. Took one up\nby mistake? Report it Pending again \u2014 the attempt it already spent is kept, no failure is\ninvented. A step that is Done or Skipped is settled and does not move again.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "stepId": {
+          "description": "Id of the step, as the plan printed it.",
+          "type": "string"
+        },
+        "status": {
+          "description": "Where the step now stands.",
+          "type": "string",
+          "enum": [
+            "Pending",
+            "InProgress",
+            "Done",
+            "Failed",
+            "Skipped"
+          ]
+        },
+        "note": {
+          "description": "What came out of the step, or why it failed. Required when skipping.",
+          "type": "string",
+          "default": ""
+        },
+        "projectName": {
+          "description": "Project the plan belongs to. Empty \u2014 the folder this server runs in, which is the usual answer.",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "required": [
+        "stepId",
+        "status"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "revise_plan",
+    "description": "Change the plan when the work turns out different from the draft \u2014 a step missing, a step worded\nwrongly, an order that no longer holds. Revise it rather than quietly walking away from it.\nPass the version you last read; if the plan has changed since, nothing is written and you are told\nto read it again. Each change is one of: Add (a new step, at the end or after the step named in\n\u0027after\u0027), Edit (reword a step that has not settled), Skip (take a step out of the work, \u0027reason\u0027\nrequired \u2014 it stays on the record), Reorder (move a step after another, or to the front).\nSteps are never deleted, only Skipped. Optionally pass \u0027summary\u0027 to say where the work stands, and\n\u0027outcome\u0027 to settle the plan: Active (reopen it), Completed, Failed, Abandoned. Left alone, a plan\ncompletes itself once no step is open.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "planId": {
+          "description": "Id of the plan to change.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Version of the plan you last read; a stale version writes nothing.",
+          "type": "integer"
+        },
+        "changes": {
+          "description": "The changes, applied in the order given.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "description": "What to do: add, edit, skip or reorder.",
+                "type": "string",
+                "enum": [
+                  "Add",
+                  "Edit",
+                  "Skip",
+                  "Reorder"
+                ]
+              },
+              "title": {
+                "description": "Step text \u2014 required by add and edit, ignored otherwise.",
+                "type": "string",
+                "default": ""
+              },
+              "step_id": {
+                "description": "Step this change applies to \u2014 required by edit, skip and reorder.",
+                "type": "string",
+                "default": ""
+              },
+              "after": {
+                "description": "Put the step right after this one. Empty \u2014 at the end for add, at the front for reorder.",
+                "type": "string",
+                "default": ""
+              },
+              "reason": {
+                "description": "Why the step is skipped \u2014 required by skip, it stays on the record in its place.",
+                "type": "string",
+                "default": ""
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "summary": {
+          "description": "Where the work stands now. Empty \u2014 left as it was.",
+          "type": "string",
+          "default": ""
+        },
+        "outcome": {
+          "description": "Settle the plan: Active, Completed, Failed or Abandoned. Empty \u2014 decided by the steps.",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "required": [
+        "planId",
+        "version",
+        "changes"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "list_active_plans",
+    "description": "What every agent is working on right now: per plan the objective, step counts by status, the step\nin progress, and how long since it last moved \u2014 that age is what shows an agent stuck or gone.\nThis is the one tool that answers about other agents, not the caller. Answers are capped at 20000\ncharacters and say so when cut.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectName": {
+          "description": "Narrow to one project. Empty \u2014 every project.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true
+    },
+    "skill": null
+  }
+]

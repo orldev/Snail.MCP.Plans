@@ -7,7 +7,7 @@ using Snail.MCP.Plans.Infrastructure.Configuration;
 using Snail.MCP.Plans.Infrastructure.Identity;
 using Snail.MCP.Plans.Infrastructure.Persistence;
 using Snail.MCP.Plans.Tools;
-using Snail.Toolkit.Mcp.Hosting;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Plans.Host.Extensions;
 
@@ -32,11 +32,11 @@ public static class ServiceCollectionExtensions
         /// <remarks>The directory is created eagerly: EF Core does not create a missing parent of the database file.</remarks>
         private IServiceCollection AddPlanStorage(PlanOptions options)
         {
-            var connectionString = options.ResolveConnectionString();
+            var database = options.ResolveConnectionString();
 
-            EnsureDatabaseDirectory(connectionString);
+            EnsureDatabaseDirectory(database);
 
-            services.AddSingleton<IPlanStore>(new SqlitePlanStore(connectionString));
+            services.AddSingleton<IPlanStore>(new SqlitePlanStore(database));
 
             return services;
         }
@@ -64,9 +64,9 @@ public static class ServiceCollectionExtensions
         }
     }
 
-    private static void EnsureDatabaseDirectory(string connectionString)
+    private static void EnsureDatabaseDirectory(string database)
     {
-        var dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
+        var dataSource = new SqliteConnectionStringBuilder(database).DataSource;
 
         if (dataSource == ":memory:")
             return;

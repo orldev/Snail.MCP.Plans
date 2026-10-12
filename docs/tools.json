@@ -1,0 +1,8 @@
+{
+  "intro": [
+    "A plan your agent actually keeps: it drafts its steps before starting, walks them in order, marks each one as it goes, and from another session `list_active_plans` shows every agent's objective, its step counts, the step in progress and how long since it last moved. Everything is local: one SQLite file, no accounts, no cloud, no API keys."
+  ],
+  "families": [
+    { "type": "PlanTools", "slug": "plans", "title": "The plan: draft, walk, revise, watch" }
+  ]
+}

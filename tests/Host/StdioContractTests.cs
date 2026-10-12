@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Infrastructure.Configuration;
 
@@ -8,7 +9,7 @@ namespace Snail.MCP.Plans.Tests.Host;
 /// The contract of the real server process: stdout carries JSON-RPC and nothing else, the composition
 /// root boots, the instruction reaches the client at the handshake, every tool reaches the model, and a
 /// whole plan can be walked over the wire.
-public class StdioContractTests
+public partial class StdioContractTests
 {
     private const string ProtocolVersion = "2025-06-18";
 
@@ -51,6 +52,23 @@ public class StdioContractTests
             names);
     }
 
+    /// <summary>
+    /// The guard rules of every Snail server, on the list a model receives: names in snake case and listed once, the tool
+    /// and every parameter described, read-only or destructive stated, every allowed value named, English.
+    /// </summary>
+    [Fact]
+    public async Task Tools_AsListed_KeepTheGuardRules()
+    {
+        var database = Path.Combine(Snail.Sdk.Mcp.Testing.ServerProgram.Home, "plans.db");
+        var environment = new Dictionary<string, string?> { [EnvironmentSettings.Prefix + "DBPATH"] = database, [EnvironmentSettings.AgentVariable] = "guard-agent" };
+
+        await using var client = await Snail.Sdk.Mcp.Testing.ServerProgram.StartAsync("Snail.MCP.Plans", "SNAIL_PLANS_SERVER", environment);
+
+        var listed = await client.ListToolsAsync();
+
+        Assert.Empty(Snail.Sdk.Mcp.Testing.ToolGuards.Problems(listed.Select(tool => tool.ProtocolTool)));
+    }
+
     /// The whole point of the server, walked over the wire the way an agent would: draft, come back
     /// without knowing the plan id, report a step, and be handed the next one.
     [Fact]
@@ -90,8 +108,8 @@ public class StdioContractTests
         Assert.Contains($"1 {nameof(StepStatus.Done)}", active, StringComparison.Ordinal);
 
         var plan = await session.CallToolAsync(7, "get_current_plan", new { });
-        var planId = System.Text.RegularExpressions.Regex.Match(plan, @"# Plan ([0-9a-f-]{36})").Groups[1].Value;
-        var version = int.Parse(System.Text.RegularExpressions.Regex.Match(plan, @"version (\d+)").Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+        var planId = PlanHeading().Match(plan).Groups[1].Value;
+        var version = int.Parse(PlanVersion().Match(plan).Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
 
         var revised = await session.CallToolAsync(8, "revise_plan", new
         {
@@ -110,8 +128,14 @@ public class StdioContractTests
 
         Assert.Equal(0, exitCode);
         Assert.All(session.StdoutLines, line => session.ParseOrFail(line));
-        Assert.True(session.DatabaseExists, $"the configured database was never created. stderr:\n{session.StderrText}");
+        Assert.True(session.HasDatabaseFile, $"the configured database was never created. stderr:\n{session.StderrText}");
     }
+
+    [GeneratedRegex("# Plan ([0-9a-f-]{36})")]
+    private static partial Regex PlanHeading();
+
+    [GeneratedRegex(@"version (\d+)")]
+    private static partial Regex PlanVersion();
 
     private static object Handshake => new
     {
@@ -143,7 +167,7 @@ public class StdioContractTests
 
         public List<string> StdoutLines { get; } = [];
 
-        public bool DatabaseExists => File.Exists(_databaseFile);
+        public bool HasDatabaseFile => File.Exists(_databaseFile);
 
         public string StderrText => string.Join('\n', _stderr);
 
@@ -153,7 +177,7 @@ public class StdioContractTests
                 Path.GetTempPath(),
                 $"snail-plans-stdio-{Guid.NewGuid().ToString("N")[..8]}.db");
 
-            var (command, arguments) = Snail.Toolkit.Mcp.Testing.ServerProgram.Command("Snail.MCP.Plans", "SNAIL_PLANS_SERVER");
+            var (command, arguments) = Snail.Sdk.Mcp.Testing.ServerProgram.Command("Snail.MCP.Plans", "SNAIL_PLANS_SERVER");
             var start = new ProcessStartInfo
             {
                 FileName = command,

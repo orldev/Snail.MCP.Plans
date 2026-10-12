@@ -18,7 +18,7 @@ namespace Snail.MCP.Plans.Infrastructure.Persistence;
 /// would be a race between them; a refusal comes back as the database's own exception.
 /// </para>
 /// </remarks>
-public sealed class SqlitePlanStore(string connectionString) : IPlanStore, IDisposable
+public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
 {
     private const string Schema =
         """
@@ -224,7 +224,7 @@ public sealed class SqlitePlanStore(string connectionString) : IPlanStore, IDisp
                     Version = reader.GetInt32(6),
                     CreatedAt = Moment(reader.GetInt64(7)),
                     UpdatedAt = Moment(reader.GetInt64(8)),
-                    CompletedAt = reader.IsDBNull(9) ? null : Moment(reader.GetInt64(9)),
+                    CompletedAt = await reader.IsDBNullAsync(9, cancellationToken) ? null : Moment(reader.GetInt64(9)),
                     Steps = []
                 });
             }
@@ -254,8 +254,8 @@ public sealed class SqlitePlanStore(string connectionString) : IPlanStore, IDisp
                 Status = Enum.TryParse<StepStatus>(reader.GetString(4), out var status) ? status : StepStatus.Pending,
                 Note = reader.GetString(5),
                 Attempts = reader.GetInt32(6),
-                StartedAt = reader.IsDBNull(7) ? null : Moment(reader.GetInt64(7)),
-                CompletedAt = reader.IsDBNull(8) ? null : Moment(reader.GetInt64(8))
+                StartedAt = await reader.IsDBNullAsync(7, cancellationToken) ? null : Moment(reader.GetInt64(7)),
+                CompletedAt = await reader.IsDBNullAsync(8, cancellationToken) ? null : Moment(reader.GetInt64(8))
             });
         }
 
@@ -285,7 +285,7 @@ public sealed class SqlitePlanStore(string connectionString) : IPlanStore, IDisp
 
     private async Task<SqliteConnection> OpenAsync(CancellationToken cancellationToken)
     {
-        var connection = new SqliteConnection(connectionString);
+        var connection = new SqliteConnection(database);
 
         await connection.OpenAsync(cancellationToken);
 

@@ -6,11 +6,12 @@ using Snail.MCP.Plans.Core;
 namespace Snail.MCP.Plans.Tools;
 
 /// <summary>The MCP tools an agent keeps its plan with.</summary>
+/// <remarks>None of them removes anything — a step is skipped, never deleted — so the ones that write say they are not destructive.</remarks>
 [McpServerToolType]
 public sealed class PlanTools
 {
     /// <summary>Drafts the plan a task is about to be done by.</summary>
-    [McpServerTool, Description(ToolDescriptions.CreatePlan)]
+    [McpServerTool(ReadOnly = false, Destructive = false), Description(ToolDescriptions.CreatePlan)]
     public Task<string> CreatePlan(
         PlanDrafting drafting,
         [Description("What the work is meant to achieve. Immutable once the plan exists.")] string objective,
@@ -19,7 +20,7 @@ public sealed class PlanTools
         drafting.DraftAsync(objective, steps, projectName);
 
     /// <summary>Answers with the plan this agent is walking.</summary>
-    [McpServerTool, Description(ToolDescriptions.GetCurrentPlan)]
+    [McpServerTool(ReadOnly = true), Description(ToolDescriptions.GetCurrentPlan)]
     public Task<string> GetCurrentPlan(
         PlanProgress progress,
         [Description(ToolDescriptions.ProjectParam)] string projectName = "",
@@ -27,7 +28,7 @@ public sealed class PlanTools
         progress.CurrentAsync(projectName, planId);
 
     /// <summary>Moves a step and answers with the progress and the next step.</summary>
-    [McpServerTool, Description(ToolDescriptions.UpdateStep)]
+    [McpServerTool(ReadOnly = false, Destructive = false), Description(ToolDescriptions.UpdateStep)]
     public Task<string> UpdateStep(
         PlanProgress progress,
         [Description("Id of the step, as the plan printed it.")] string stepId,
@@ -37,7 +38,7 @@ public sealed class PlanTools
         progress.AdvanceAsync(stepId, status, note, projectName);
 
     /// <summary>Applies changes to the step list of a plan.</summary>
-    [McpServerTool, Description(ToolDescriptions.RevisePlan)]
+    [McpServerTool(ReadOnly = false, Destructive = false), Description(ToolDescriptions.RevisePlan)]
     public Task<string> RevisePlan(
         PlanRevision revision,
         [Description("Id of the plan to change.")] string planId,
@@ -48,7 +49,7 @@ public sealed class PlanTools
         revision.ReviseAsync(planId, version, changes, summary, outcome);
 
     /// <summary>Answers with every active plan and how far along it is.</summary>
-    [McpServerTool, Description(ToolDescriptions.ListActivePlans)]
+    [McpServerTool(ReadOnly = true), Description(ToolDescriptions.ListActivePlans)]
     public Task<string> ListActivePlans(
         ActivePlans active,
         [Description("Narrow to one project. Empty — every project.")] string projectName = "") =>

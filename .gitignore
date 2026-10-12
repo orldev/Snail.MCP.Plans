@@ -4,3 +4,6 @@ obj/
 .DS_Store
 .idea/
 .vs/
+
+# BenchmarkDotNet results; the accepted run is kept in benchmarks/baseline/.
+BenchmarkDotNet.Artifacts/
