@@ -1,0 +1,26 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schemas/draft/2025-07-09/server.json",
+  "name": "io.github.orldev/snail-mcp-plans",
+  "description": "Holds an agent's plan: draft steps before starting, walk them in order, mark and revise them as work goes, and ask from another session which plans are active and how far along they are.",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "nuget",
+      "identifier": "Snail.MCP.Plans",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "SNAIL_MCP_PLANS_AGENTID",
+          "description": "Identity of this agent. Empty — the working directory of the server process.",
+          "isRequired": false
+        },
+        {
+          "name": "SNAIL_MCP_PLANS_DBPATH",
+          "description": "SQLite database file. Empty — ~/.snail-mcp-plans/plans.db",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}
