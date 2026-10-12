@@ -56,7 +56,11 @@ public static class ServiceCollectionExtensions
         public IServiceCollection AddMcpTransport()
         {
             services
-                .AddMcpServer(server => server.ServerInstructions = ServerGuidance.Instructions)
+                .AddMcpServer(server =>
+                {
+                    server.ServerInfo = ServerIdentity.Of(typeof(ServiceCollectionExtensions).Assembly);
+                    server.ServerInstructions = ServerGuidance.Instructions;
+                })
                 .WithStdioServerTransport()
                 .WithTools<PlanTools>(ToolJson.Options(PlansJson.Default));
 

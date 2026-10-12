@@ -24,7 +24,7 @@ public partial class StdioContractTests
 
         var result = initialize.GetProperty("result");
 
-        Assert.Equal("Snail.MCP.Plans", result.GetProperty("serverInfo").GetProperty("name").GetString());
+        Assert.Equal("s3l-mcp-plans", result.GetProperty("serverInfo").GetProperty("name").GetString());
 
         var instructions = result.GetProperty("instructions").GetString()!;
 

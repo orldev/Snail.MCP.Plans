@@ -15,7 +15,7 @@ append-only журнал правок, обратный канал коорди�
 
 Один файл SQLite + EF Core 10, `journal_mode=WAL` и `busy_timeout` — обязательны: агент это
 stdio-процесс на сессию, а вторая сессия читает тот же файл одновременно.
-Путь: `SNAIL_MCP_PLANS_DBPATH`, по умолчанию `~/.snail-mcp-plans/plans.db`;
+Путь: `SNAIL_MCP_PLANS_DBPATH`, по умолчанию `~/.s3l-mcp-plans/plans.db`;
 `SNAIL_MCP_PLANS_BUSYTIMEOUTSECONDS` — сколько ждать чужую запись, по умолчанию 10 секунд.
 
 ### Plans

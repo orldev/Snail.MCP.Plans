@@ -25,14 +25,14 @@ Everything is local: one SQLite file, no accounts, no cloud, no API keys.
 dotnet tool install --global Snail.MCP.Plans --prerelease
 ```
 
-This gives you the `snail-mcp-plans` command (`~/.dotnet/tools` must be on `PATH`): a native program on macOS, Linux
+This gives you the `s3l-mcp-plans` command (`~/.dotnet/tools` must be on `PATH`): a native program on macOS, Linux
 and Windows, a framework-dependent one elsewhere — `dotnet tool` picks the package of the machine. `dnx Snail.MCP.Plans
 --yes` runs it without installing.
 
 **2. Connect** it under the name `plans`:
 
 ```bash
-claude mcp add plans -- snail-mcp-plans
+claude mcp add plans -- s3l-mcp-plans
 ```
 
 Or, in a client that reads `mcp.json`:
@@ -41,7 +41,7 @@ Or, in a client that reads `mcp.json`:
 {
   "mcpServers": {
     "plans": {
-      "command": "snail-mcp-plans"
+      "command": "s3l-mcp-plans"
     }
   }
 }
@@ -77,13 +77,13 @@ capped and say so when cut.
 ## Configuration
 
 Everything is optional. Settings come from `SNAIL_MCP_PLANS_*` environment variables or from a
-`snail-mcp-plans.json` file (looked up in the working directory, then `~/.config/snail-mcp-plans/config.json`,
-then the profile); the environment wins.
+`s3l-mcp-plans.json` file (looked up in the working directory, then `~/.config/s3l-mcp-plans/config.json`,
+then the profile; at each place the former `snail-mcp-plans.json` is still read after it); the environment wins.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `SNAIL_MCP_PLANS_AGENTID` | the folder the server runs in | Who the plans belong to. Two sessions started in the same folder share a plan on purpose — the second continues the first. |
-| `SNAIL_MCP_PLANS_DBPATH` | `~/.snail-mcp-plans/plans.db` | The SQLite file. Point several clients at one file to see each other's plans. |
+| `SNAIL_MCP_PLANS_DBPATH` | `~/.s3l-mcp-plans/plans.db` | The SQLite file. Point several clients at one file to see each other's plans. |
 | `SNAIL_MCP_PLANS_BUSYTIMEOUTSECONDS` | `10` | How long a write waits when another session is writing. |
 | `SNAIL_MCP_PLANS_CONFIG` | — | An explicit config file, overriding the lookup. |
 
@@ -96,12 +96,12 @@ dotnet test    # 125 tests, including a contract test over the real stdio proces
 dotnet run --project src
 ```
 
-Published from the repository beside the other Snail MCP servers, it lives in `~/.snail-mcp/Snail.MCP.Plans`, and
+Published from the repository beside the other Snail MCP servers, it lives in `~/.s3l-mcp/Snail.MCP.Plans`, and
 `current` follows every later publication:
 
 ```bash
 dotnet publish src -c Release -r osx-arm64 -p:Install=true
-claude mcp add -s user plans -- ~/.snail-mcp/Snail.MCP.Plans/current/Snail.MCP.Plans
+claude mcp add -s user plans -- ~/.s3l-mcp/Snail.MCP.Plans/current/Snail.MCP.Plans
 ```
 
 Measured on an Apple Silicon Mac against `dotnet Snail.MCP.Plans.dll`: 24 MB resident at rest instead of 112, the
