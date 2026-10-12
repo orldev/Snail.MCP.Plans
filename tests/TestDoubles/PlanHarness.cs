@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Snail.MCP.Plans.Application;
 using Snail.MCP.Plans.Core.Interfaces;
 using Snail.MCP.Plans.Infrastructure.Persistence;
@@ -13,22 +12,18 @@ namespace Snail.MCP.Plans.Tests.TestDoubles;
 public sealed class PlanHarness : IDisposable
 {
     private readonly string _file;
-    private readonly PlansDb _db;
+    private readonly SqlitePlanStore _store;
 
     /// <summary>Opens a fresh database for one test.</summary>
     public PlanHarness(string agentId = "agent-one", string projectName = "project-one")
     {
         _file = Path.Combine(Path.GetTempPath(), $"snail-plans-{Guid.NewGuid().ToString("N")[..8]}.db");
 
-        var options = new DbContextOptionsBuilder<PlansDbContext>()
-            .UseSqlite($"Data Source={_file}")
-            .Options;
-
-        _db = new PlansDb(new SingleContextFactory(options));
+        _store = new SqlitePlanStore($"Data Source={_file}");
 
         Clock = new StoppedClock(new DateTimeOffset(2026, 9, 12, 10, 0, 0, TimeSpan.Zero));
         Identity = new FixedIdentity(agentId, projectName);
-        Plans = new EfPlanStore(_db);
+        Plans = _store;
 
         Drafting = new PlanDrafting(Plans, Identity, Clock);
         Progress = new PlanProgress(Plans, Identity, Clock);
@@ -75,14 +70,10 @@ public sealed class PlanHarness : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        _db.Dispose();
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
         foreach (var path in new[] { _file, $"{_file}-wal", $"{_file}-shm" })
             File.Delete(path);
-    }
-
-    private sealed class SingleContextFactory(DbContextOptions<PlansDbContext> options) : IDbContextFactory<PlansDbContext>
-    {
-        public PlansDbContext CreateDbContext() => new(options);
     }
 }

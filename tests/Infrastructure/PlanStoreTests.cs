@@ -1,5 +1,4 @@
 using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Tests.TestDoubles;
 
@@ -18,7 +17,7 @@ public class PlanStoreTests
 
         await harness.Plans.AddAsync(PlanOf("agent-one", "project-one"));
 
-        await Assert.ThrowsAnyAsync<DbUpdateException>(
+        await Assert.ThrowsAnyAsync<SqliteException>(
             () => harness.Plans.AddAsync(PlanOf("agent-one", "project-one")));
     }
 
@@ -49,7 +48,7 @@ public class PlanStoreTests
             Steps = [.. plan.Steps.Select(step => step with { Status = StepStatus.InProgress })]
         };
 
-        await Assert.ThrowsAnyAsync<DbUpdateException>(() => harness.Plans.TrySaveAsync(busy, plan.Version));
+        await Assert.ThrowsAnyAsync<SqliteException>(() => harness.Plans.TrySaveAsync(busy, plan.Version));
     }
 
     [Fact]

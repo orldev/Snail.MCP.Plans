@@ -1,0 +1,144 @@
+name: release to NuGet
+
+# A native dotnet tool package for each platform, built on that platform, a framework-dependent fallback for the
+# rest, and the package that points at them pushed last (docs/publishing.md in Snail.MCP.CleanUp). A v* tag
+# releases; run by hand, it builds every package and pushes only when asked to.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to pack, such as 0.2.0 or 0.2.0-preview.1
+        required: true
+      push:
+        description: Push the packages to NuGet
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.version.outputs.value }}
+    steps:
+      - id: version
+        env:
+          GIVEN: ${{ inputs.version }}
+        run: |
+          version="${GIVEN:-${GITHUB_REF_NAME#v}}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$version' is not a version"
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+  native:
+    needs: version
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { rid: osx-arm64, os: macos-latest }
+          - { rid: osx-x64, os: macos-latest }
+          - { rid: linux-x64, os: ubuntu-latest }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm }
+          - { rid: win-x64, os: windows-latest }
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ needs.version.outputs.value }}
+      RID: ${{ matrix.rid }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Native toolchain
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Version in the registry manifest
+        run: jq --arg v "$VERSION" '.version = $v | .packages[].version = $v' .mcp/server.json > server.json.tmp && mv server.json.tmp .mcp/server.json
+
+      - name: Pack
+        run: |
+          dotnet pack src -c Release -r "$RID" -p:PackageVersion="$VERSION" -o artifacts/packages 2>&1 | tee pack.log
+          if grep -E "warning (IL|AOT)[0-9]+" pack.log; then
+            echo "::error::the native build warned"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-${{ matrix.rid }}
+          path: artifacts/packages/*.nupkg
+          retention-days: 7
+
+  portable:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Version in the registry manifest
+        run: jq --arg v "$VERSION" '.version = $v | .packages[].version = $v' .mcp/server.json > server.json.tmp && mv server.json.tmp .mcp/server.json
+
+      - name: Pack the fallback and the pointer
+        run: |
+          dotnet pack src -c Release -r any -p:PublishAot=false -p:PackageVersion="$VERSION" -o artifacts/packages
+          dotnet pack src -c Release -p:PackageVersion="$VERSION" -o artifacts/packages
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-portable
+          path: artifacts/packages/*.nupkg
+          retention-days: 7
+
+  push:
+    needs: [version, native, portable]
+    if: github.event_name == 'push' || inputs.push
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      VERSION: ${{ needs.version.outputs.value }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: packages-*
+          path: artifacts/packages
+          merge-multiple: true
+
+      - name: NuGet login (OIDC, a key for this run only)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # The pointer names every platform package; pushed before them, it would install nothing for a while.
+      - name: Push, the pointer last
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          pointer="artifacts/packages/Snail.MCP.Plans.$VERSION.nupkg"
+          test -f "$pointer"
+          for package in artifacts/packages/*.nupkg; do
+            [ "$package" = "$pointer" ] && continue
+            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
+          dotnet nuget push "$pointer" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate

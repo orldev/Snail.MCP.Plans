@@ -1,13 +1,13 @@
 using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using ModelContextProtocol.Server;
 using Snail.MCP.Plans.Application;
 using Snail.MCP.Plans.Core.Interfaces;
 using Snail.MCP.Plans.Host.Prompts;
 using Snail.MCP.Plans.Infrastructure.Configuration;
 using Snail.MCP.Plans.Infrastructure.Identity;
 using Snail.MCP.Plans.Infrastructure.Persistence;
+using Snail.MCP.Plans.Tools;
+using Snail.Toolkit.Mcp.Hosting;
 
 namespace Snail.MCP.Plans.Host.Extensions;
 
@@ -36,9 +36,7 @@ public static class ServiceCollectionExtensions
 
             EnsureDatabaseDirectory(connectionString);
 
-            services.AddPooledDbContextFactory<PlansDbContext>(builder => builder.UseSqlite(connectionString));
-            services.AddSingleton<PlansDb>();
-            services.AddSingleton<IPlanStore, EfPlanStore>();
+            services.AddSingleton<IPlanStore>(new SqlitePlanStore(connectionString));
 
             return services;
         }
@@ -60,7 +58,7 @@ public static class ServiceCollectionExtensions
             services
                 .AddMcpServer(server => server.ServerInstructions = ServerGuidance.Instructions)
                 .WithStdioServerTransport()
-                .WithToolsFromAssembly();
+                .WithTools<PlanTools>(ToolJson.Options(PlansJson.Default));
 
             return services;
         }

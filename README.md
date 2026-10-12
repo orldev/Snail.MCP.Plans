@@ -25,7 +25,9 @@ Everything is local: one SQLite file, no accounts, no cloud, no API keys.
 dotnet tool install --global Snail.MCP.Plans --prerelease
 ```
 
-This gives you the `snail-mcp-plans` command (`~/.dotnet/tools` must be on `PATH`).
+This gives you the `snail-mcp-plans` command (`~/.dotnet/tools` must be on `PATH`): a native program on macOS, Linux
+and Windows, a framework-dependent one elsewhere — `dotnet tool` picks the package of the machine. `dnx Snail.MCP.Plans
+--yes` runs it without installing.
 
 **2. Connect** it under the name `plans`:
 
@@ -93,6 +95,19 @@ The database is opened in write-ahead logging mode, so a second session reads it
 dotnet test    # 125 tests, including a contract test over the real stdio process
 dotnet run --project src
 ```
+
+Published from the repository beside the other Snail MCP servers, it lives in `~/.snail-mcp/Snail.MCP.Plans`, and
+`current` follows every later publication:
+
+```bash
+dotnet publish src -c Release -r osx-arm64 -p:Install=true
+claude mcp add -s user plans -- ~/.snail-mcp/Snail.MCP.Plans/current/Snail.MCP.Plans
+```
+
+Measured on an Apple Silicon Mac against `dotnet Snail.MCP.Plans.dll`: 24 MB resident at rest instead of 112, the
+handshake answered in 60 ms instead of 206, and the first read of the plans in 5 ms instead of 345 — the database is
+read with Microsoft.Data.Sqlite directly, in the tables and the format Entity Framework made, so an older file reads
+the same.
 
 ## License
 

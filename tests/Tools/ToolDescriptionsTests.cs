@@ -16,7 +16,7 @@ public class ToolDescriptionsTests
     private static readonly IReadOnlyList<MethodInfo> Tools =
     [
         .. typeof(PlanTools)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Where(method => method.GetCustomAttribute<McpServerToolAttribute>() is not null)
     ];
 

@@ -7,11 +7,11 @@ namespace Snail.MCP.Plans.Tools;
 
 /// <summary>The MCP tools an agent keeps its plan with.</summary>
 [McpServerToolType]
-public static class PlanTools
+public sealed class PlanTools
 {
     /// <summary>Drafts the plan a task is about to be done by.</summary>
     [McpServerTool, Description(ToolDescriptions.CreatePlan)]
-    public static Task<string> CreatePlan(
+    public Task<string> CreatePlan(
         PlanDrafting drafting,
         [Description("What the work is meant to achieve. Immutable once the plan exists.")] string objective,
         [Description("The steps, in the order they are to be walked.")] string[] steps,
@@ -20,7 +20,7 @@ public static class PlanTools
 
     /// <summary>Answers with the plan this agent is walking.</summary>
     [McpServerTool, Description(ToolDescriptions.GetCurrentPlan)]
-    public static Task<string> GetCurrentPlan(
+    public Task<string> GetCurrentPlan(
         PlanProgress progress,
         [Description(ToolDescriptions.ProjectParam)] string projectName = "",
         [Description("Read this plan instead, by its id — works for any agent's plan, read-only.")] string planId = "") =>
@@ -28,7 +28,7 @@ public static class PlanTools
 
     /// <summary>Moves a step and answers with the progress and the next step.</summary>
     [McpServerTool, Description(ToolDescriptions.UpdateStep)]
-    public static Task<string> UpdateStep(
+    public Task<string> UpdateStep(
         PlanProgress progress,
         [Description("Id of the step, as the plan printed it.")] string stepId,
         [Description("Where the step now stands.")] StepStatus status,
@@ -38,7 +38,7 @@ public static class PlanTools
 
     /// <summary>Applies changes to the step list of a plan.</summary>
     [McpServerTool, Description(ToolDescriptions.RevisePlan)]
-    public static Task<string> RevisePlan(
+    public Task<string> RevisePlan(
         PlanRevision revision,
         [Description("Id of the plan to change.")] string planId,
         [Description("Version of the plan you last read; a stale version writes nothing.")] int version,
@@ -49,7 +49,7 @@ public static class PlanTools
 
     /// <summary>Answers with every active plan and how far along it is.</summary>
     [McpServerTool, Description(ToolDescriptions.ListActivePlans)]
-    public static Task<string> ListActivePlans(
+    public Task<string> ListActivePlans(
         ActivePlans active,
         [Description("Narrow to one project. Empty — every project.")] string projectName = "") =>
         active.RenderAsync(projectName);

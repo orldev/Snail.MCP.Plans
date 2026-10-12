@@ -12,8 +12,6 @@ public static class HostBuilderExtensions
         /// <summary>Wires logging to stderr, the plans of <see cref="PlanOptions.Load"/> and the MCP server over stdio.</summary>
         public HostApplicationBuilder ConfigureMcpServer()
         {
-            builder.Logging.AddMcpStdioLogging();
-
             builder.Services
                 .AddPlans(PlanOptions.Load())
                 .AddMcpTransport();

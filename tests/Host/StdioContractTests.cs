@@ -89,6 +89,23 @@ public class StdioContractTests
         Assert.Contains("ship the plans server", active, StringComparison.Ordinal);
         Assert.Contains($"1 {nameof(StepStatus.Done)}", active, StringComparison.Ordinal);
 
+        var plan = await session.CallToolAsync(7, "get_current_plan", new { });
+        var planId = System.Text.RegularExpressions.Regex.Match(plan, @"# Plan ([0-9a-f-]{36})").Groups[1].Value;
+        var version = int.Parse(System.Text.RegularExpressions.Regex.Match(plan, @"version (\d+)").Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+
+        var revised = await session.CallToolAsync(8, "revise_plan", new
+        {
+            planId,
+            version,
+            changes = new object[]
+            {
+                new { kind = "add", title = "publish it" },
+                new { kind = "skip", step_id = StepIdOf(plan, "wire the tools"), reason = "done by hand" }
+            }
+        });
+
+        Assert.Contains("publish it", revised, StringComparison.Ordinal);
+
         var exitCode = await session.ShutdownAsync();
 
         Assert.Equal(0, exitCode);
@@ -136,15 +153,17 @@ public class StdioContractTests
                 Path.GetTempPath(),
                 $"snail-plans-stdio-{Guid.NewGuid().ToString("N")[..8]}.db");
 
+            var (command, arguments) = Snail.Toolkit.Mcp.Testing.ServerProgram.Command("Snail.MCP.Plans", "SNAIL_PLANS_SERVER");
             var start = new ProcessStartInfo
             {
-                FileName = "dotnet",
+                FileName = command,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
 
-            start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "Snail.MCP.Plans.dll"));
+            foreach (var argument in arguments)
+                start.ArgumentList.Add(argument);
             start.Environment[EnvironmentSettings.Prefix + "DBPATH"] = databaseFile;
             start.Environment[EnvironmentSettings.AgentVariable] = "stdio-contract-agent";
             start.Environment.Remove(EnvironmentSettings.ConfigPathVariable);

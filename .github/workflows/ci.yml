@@ -1,0 +1,60 @@
+name: build and tests
+
+# Every push, on every branch: the tests, and the native program built for each platform it ships to, without a
+# trim or AOT warning, then started and asked over stdio where it can run. A release only packs what this proved.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test Snail.MCP.Plans.slnx -c Release
+
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: osx-arm64, os: macos-latest, runs: true, program: Snail.MCP.Plans }
+          - { rid: osx-x64, os: macos-latest, runs: false, program: Snail.MCP.Plans }
+          - { rid: linux-x64, os: ubuntu-latest, runs: true, program: Snail.MCP.Plans }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm, runs: true, program: Snail.MCP.Plans }
+          - { rid: win-x64, os: windows-latest, runs: true, program: Snail.MCP.Plans.exe }
+    runs-on: ${{ matrix.os }}
+    env:
+      RID: ${{ matrix.rid }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Native toolchain
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Publish native
+        run: |
+          dotnet publish src -c Release -r "$RID" -o published 2>&1 | tee publish.log
+          if grep -E "warning (IL|AOT)[0-9]+" publish.log; then
+            echo "::error::the native build warned; a warning here is a call that fails at run time"
+            exit 1
+          fi
+
+      - name: Answers over stdio
+        if: matrix.runs
+        env:
+          SNAIL_PLANS_SERVER: ${{ github.workspace }}/published/${{ matrix.program }}
+        run: dotnet test tests -c Release --filter "FullyQualifiedName~StdioContract"
