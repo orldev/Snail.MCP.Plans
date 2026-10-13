@@ -60,6 +60,16 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
 
     private static readonly string Active = nameof(PlanStatus.Active);
 
+    /// <summary>Taken around every open: connections of one file are opened one at a time.</summary>
+    /// <remarks>
+    /// Microsoft.Data.Sqlite 10.0.11 and 10.0.12 mark a pooled connection active before naming its owner, and an
+    /// open that finds the pool empty reclaims every active connection without an owner: one being opened at that
+    /// moment goes back to the pool and two callers share its handle (dotnet/efcore#39008, fixed after 10.0.12). The
+    /// pool belongs to the process, not to a store, so the lock does too. An open costs microseconds; tool calls come
+    /// seconds apart.
+    /// </remarks>
+    private static readonly Lock Opening = new();
+
     private readonly SemaphoreSlim _preparing = new(1, 1);
 
     private volatile bool _isPrepared;
@@ -287,7 +297,10 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
     {
         var connection = new SqliteConnection(database);
 
-        await connection.OpenAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (Opening)
+            connection.Open();
 
         await using (var foreignKeys = Command(connection, null, "PRAGMA foreign_keys = ON;"))
             await foreignKeys.ExecuteNonQueryAsync(cancellationToken);

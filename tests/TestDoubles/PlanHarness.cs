@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Snail.MCP.Plans.Application;
 using Snail.MCP.Plans.Core.Interfaces;
 using Snail.MCP.Plans.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ namespace Snail.MCP.Plans.Tests.TestDoubles;
 public sealed class PlanHarness : IDisposable
 {
     private readonly string _file;
+    private readonly string _database;
     private readonly SqlitePlanStore _store;
 
     /// <summary>Opens a fresh database for one test.</summary>
@@ -19,7 +21,8 @@ public sealed class PlanHarness : IDisposable
     {
         _file = Path.Combine(Path.GetTempPath(), $"snail-plans-{Guid.NewGuid().ToString("N")[..8]}.db");
 
-        _store = new SqlitePlanStore($"Data Source={_file}");
+        _database = $"Data Source={_file}";
+        _store = new SqlitePlanStore(_database);
 
         Clock = new StoppedClock(new DateTimeOffset(2026, 9, 12, 10, 0, 0, TimeSpan.Zero));
         Identity = new FixedIdentity(agentId, projectName);
@@ -67,11 +70,17 @@ public sealed class PlanHarness : IDisposable
     public PlanRevision RevisionOf(string agentId, string projectName) =>
         new(Plans, new FixedIdentity(agentId, projectName), Clock);
 
-    /// <inheritdoc />
+    /// <summary>Closes this harness's pooled connections, so the file can go, and deletes it.</summary>
+    /// <remarks>
+    /// Only this file's pool: clearing every pool of the process reached into the tests running beside this one, and a
+    /// connection another test was opening at that moment was disposed under it.
+    /// </remarks>
     public void Dispose()
     {
         _store.Dispose();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        using (var connection = new SqliteConnection(_database))
+            SqliteConnection.ClearPool(connection);
 
         foreach (var path in new[] { _file, $"{_file}-wal", $"{_file}-shm" })
             File.Delete(path);
