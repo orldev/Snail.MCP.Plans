@@ -15,5 +15,4 @@ jobs:
   ci:
     uses: orldev/Snail.Sdk/.github/workflows/mcp-ci.yml@v1
     with:
-      name: Snail.MCP.Plans
       contract-variable: SNAIL_PLANS_SERVER

@@ -1,7 +1,7 @@
 {
-  "$schema": "https://modelcontextprotocol.io/schemas/draft/2025-07-09/server.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.orldev/snail-mcp-plans",
-  "description": "Holds an agent's plan: draft steps before starting, walk them in order, mark and revise them as work goes, and ask from another session which plans are active and how far along they are.",
+  "description": "Holds an agent's plan: steps drafted, walked in order, revised, and followed from other sessions.",
   "version": "0.1.0",
   "packages": [
     {

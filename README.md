@@ -100,7 +100,7 @@ Published from the repository beside the other Snail MCP servers, it lives in `~
 `current` follows every later publication:
 
 ```bash
-dotnet publish src -c Release -r osx-arm64 -p:Install=true
+dotnet publish src -c Release -r osx-arm64 -p:SnailMcpInstall=true
 claude mcp add -s user plans -- ~/.s3l-mcp/Snail.MCP.Plans/current/Snail.MCP.Plans
 ```
 
