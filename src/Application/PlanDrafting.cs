@@ -9,7 +9,9 @@ namespace Snail.MCP.Plans.Application;
 /// <remarks>
 /// A second draft for the same agent and project answers with the plan that already exists instead of
 /// creating one: MCP delivers at least once, so a call that timed out on the way back is retried, and a
-/// plain insert would leave two plans behind.
+/// plain insert would leave two plans behind. The check before the insert covers the retry; two calls in
+/// flight together both pass it, and then the file's unique index decides and the loser is answered with
+/// the winner's plan.
 /// </remarks>
 public sealed class PlanDrafting(IPlanStore plans, IAgentIdentity identity, TimeProvider clock)
 {
@@ -56,9 +58,19 @@ public sealed class PlanDrafting(IPlanStore plans, IAgentIdentity identity, Time
             })]
         };
 
-        await plans.AddAsync(plan, cancellationToken);
+        if (!await plans.TryAddAsync(plan, cancellationToken))
+            return await OutracedAsync(project, now, cancellationToken);
 
         return PlanView.Render(plan, now, await NeighboursAsync(project, cancellationToken));
+    }
+
+    private async Task<string> OutracedAsync(string project, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var winner = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
+
+        return winner is null
+            ? Messages.DraftOutraced
+            : PlanView.Render(winner, now, Messages.PlanAlreadyActive);
     }
 
     /// <remarks>Named rather than hidden: both plans are legitimate, and the one thing the agent must not do is report steps of the plan it does not own.</remarks>

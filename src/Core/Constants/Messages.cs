@@ -21,6 +21,11 @@ public static class Messages
     public const string AnotherAgentIsHere =
         "Note: this project already has an active plan, walked by another agent. Yours is separate and both now count as active. To read theirs instead, call get_current_plan with its planId; if you drafted yours only to have a look, settle it with revise_plan and outcome Abandoned.";
 
+    /// <summary>Another call of this agent stored its plan first and that plan is already settled.</summary>
+    /// <remarks>Reached only when the winner of a race is closed between the refusal and the read that follows it.</remarks>
+    public const string DraftOutraced =
+        "Another session of this agent drafted a plan at the same moment and has already settled it. Draft again if the work still needs a plan.";
+
     /// <summary>Nothing is being worked on anywhere.</summary>
     public const string NoActivePlans = "No active plans. Nothing is being worked on right now.";
 

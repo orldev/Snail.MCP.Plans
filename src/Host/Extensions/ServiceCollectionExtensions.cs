@@ -29,14 +29,17 @@ public static class ServiceCollectionExtensions
         }
 
         /// <summary>One SQLite file, shared with whatever other session has it open.</summary>
-        /// <remarks>The directory is created eagerly: EF Core does not create a missing parent of the database file.</remarks>
+        /// <remarks>
+        /// The directory is created eagerly: SQLite does not create a missing parent of the database file. The store is
+        /// registered as a factory, never as a ready instance: the container disposes only what it builds itself.
+        /// </remarks>
         private IServiceCollection AddPlanStorage(PlanOptions options)
         {
             var database = options.ResolveConnectionString();
 
             EnsureDatabaseDirectory(database);
 
-            services.AddSingleton<IPlanStore>(new SqlitePlanStore(database));
+            services.AddSingleton<IPlanStore>(_ => new SqlitePlanStore(database));
 
             return services;
         }

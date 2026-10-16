@@ -64,7 +64,7 @@ public static class Sample
 
         public Task<IReadOnlyList<Plan>> ActiveAsync(string projectName, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Plan>>([plan]);
 
-        public Task AddAsync(Plan plan, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> TryAddAsync(Plan plan, CancellationToken cancellationToken = default) => Task.FromResult(true);
 
         public Task<bool> TrySaveAsync(Plan plan, int expectedVersion, CancellationToken cancellationToken = default) => Task.FromResult(true);
     }

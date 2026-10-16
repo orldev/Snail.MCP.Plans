@@ -17,8 +17,12 @@ public interface IPlanStore
     /// <summary>Every active plan, newest activity first; an empty project name spans all of them.</summary>
     Task<IReadOnlyList<Plan>> ActiveAsync(string projectName, CancellationToken cancellationToken = default);
 
-    /// <summary>Stores a freshly drafted plan.</summary>
-    Task AddAsync(Plan plan, CancellationToken cancellationToken = default);
+    /// <summary>Stores a freshly drafted plan; <c>false</c> means the agent already has an active plan in that project.</summary>
+    /// <remarks>
+    /// A refusal is an answer, not a failure: two calls of one agent can be in flight together — MCP delivers at least
+    /// once, and two sessions in one folder share an identity on purpose — and only the file can tell which came first.
+    /// </remarks>
+    Task<bool> TryAddAsync(Plan plan, CancellationToken cancellationToken = default);
 
     /// <summary>Writes a plan built on <paramref name="expectedVersion"/>; <c>false</c> means someone else wrote first.</summary>
     Task<bool> TrySaveAsync(Plan plan, int expectedVersion, CancellationToken cancellationToken = default);

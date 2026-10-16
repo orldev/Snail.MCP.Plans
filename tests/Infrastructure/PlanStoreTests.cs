@@ -15,10 +15,10 @@ public class PlanStoreTests
     {
         using var harness = new PlanHarness();
 
-        await harness.Plans.AddAsync(PlanOf("agent-one", "project-one"));
+        await harness.Plans.TryAddAsync(PlanOf("agent-one", "project-one"));
 
-        await Assert.ThrowsAnyAsync<SqliteException>(
-            () => harness.Plans.AddAsync(PlanOf("agent-one", "project-one")));
+        Assert.False(await harness.Plans.TryAddAsync(PlanOf("agent-one", "project-one")));
+        Assert.Single(await harness.Plans.ActiveAsync(""));
     }
 
     [Fact]
@@ -26,8 +26,8 @@ public class PlanStoreTests
     {
         using var harness = new PlanHarness();
 
-        await harness.Plans.AddAsync(PlanOf("agent-one", "project-one"));
-        await harness.Plans.AddAsync(PlanOf("agent-one", "project-two"));
+        await harness.Plans.TryAddAsync(PlanOf("agent-one", "project-one"));
+        await harness.Plans.TryAddAsync(PlanOf("agent-one", "project-two"));
 
         Assert.Equal(2, (await harness.Plans.ActiveAsync("")).Count);
     }
@@ -40,7 +40,7 @@ public class PlanStoreTests
         using var harness = new PlanHarness();
         var plan = PlanOf("agent-one", "project-one", StepStatus.Pending, StepStatus.Pending);
 
-        await harness.Plans.AddAsync(plan);
+        await harness.Plans.TryAddAsync(plan);
 
         var busy = plan with
         {
@@ -60,7 +60,7 @@ public class PlanStoreTests
         {
             var plan = PlanOf("agent-one", project, StepStatus.Pending);
 
-            await harness.Plans.AddAsync(plan);
+            await harness.Plans.TryAddAsync(plan);
 
             var started = plan with
             {
@@ -78,7 +78,7 @@ public class PlanStoreTests
         using var harness = new PlanHarness();
         var plan = PlanOf("agent-one", "project-one", StepStatus.Pending);
 
-        await harness.Plans.AddAsync(plan);
+        await harness.Plans.TryAddAsync(plan);
 
         Assert.True(await harness.Plans.TrySaveAsync(plan with { Version = 2, Summary = "first" }, 1));
         Assert.False(await harness.Plans.TrySaveAsync(plan with { Version = 2, Summary = "second" }, 1));
@@ -95,8 +95,8 @@ public class PlanStoreTests
         var older = PlanOf("agent-one", "project-one") with { UpdatedAt = Now.AddHours(-2) };
         var newer = PlanOf("agent-two", "project-one") with { UpdatedAt = Now };
 
-        await harness.Plans.AddAsync(older);
-        await harness.Plans.AddAsync(newer);
+        await harness.Plans.TryAddAsync(older);
+        await harness.Plans.TryAddAsync(newer);
 
         var listed = await harness.Plans.ActiveAsync("project-one");
 
@@ -110,7 +110,7 @@ public class PlanStoreTests
     {
         using var harness = new PlanHarness();
 
-        await harness.Plans.AddAsync(PlanOf("agent-one", "project-one"));
+        await harness.Plans.TryAddAsync(PlanOf("agent-one", "project-one"));
 
         await using var connection = new SqliteConnection($"Data Source={harness.DatabaseFile}");
         await connection.OpenAsync();

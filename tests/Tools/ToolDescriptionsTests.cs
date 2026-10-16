@@ -83,8 +83,11 @@ public class ToolDescriptionsTests
             Assert.Contains(tool, ServerGuidance.Instructions, StringComparison.Ordinal);
     }
 
+    /// The processes behind a tool are injected by the server and the call's token by the MCP SDK; neither reaches
+    /// the schema a model reads, which the committed reference shows.
     private static bool IsModelSupplied(ParameterInfo parameter) =>
-        parameter.ParameterType.Namespace?.StartsWith("Snail.MCP.Plans.Application", StringComparison.Ordinal) is not true;
+        parameter.ParameterType != typeof(CancellationToken)
+        && parameter.ParameterType.Namespace?.StartsWith("Snail.MCP.Plans.Application", StringComparison.Ordinal) is not true;
 
     private static string SnakeCase(string name) =>
         string.Concat(name.Select((letter, position) =>

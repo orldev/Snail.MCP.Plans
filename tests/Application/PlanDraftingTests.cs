@@ -1,5 +1,7 @@
+using Snail.MCP.Plans.Application;
 using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
+using Snail.MCP.Plans.Core.Interfaces;
 using Snail.MCP.Plans.Tests.TestDoubles;
 
 namespace Snail.MCP.Plans.Tests.Application;
@@ -51,6 +53,18 @@ public class PlanDraftingTests
         Assert.Contains("revise_plan", answer, StringComparison.Ordinal);
         Assert.Contains(nameof(PlanStatus.Completed), answer, StringComparison.Ordinal);
         Assert.Contains("version", answer, StringComparison.Ordinal);
+    }
+
+    /// The loser of a race whose winner was settled before it could be read: there is no plan to answer with,
+    /// and saying "already active" would send the agent looking for a plan that is gone.
+    [Fact]
+    public async Task Drafting_OutracedByAPlanSettledBeforeItCouldBeRead_SaysToDraftAgain()
+    {
+        var drafting = new PlanDrafting(new RefusingStore(), new FixedIdentity("agent-one", "project-one"), TimeProvider.System);
+
+        var answer = await drafting.DraftAsync("ship the server", ["write the store"]);
+
+        Assert.Equal(Messages.DraftOutraced, answer);
     }
 
     [Fact]
@@ -111,5 +125,19 @@ public class PlanDraftingTests
 
         Assert.Equal(2, active.Count);
         Assert.Equal(["agent-one", "agent-two"], active.Select(plan => plan.AgentId).OrderBy(name => name, StringComparer.Ordinal));
+    }
+
+    /// <summary>A store whose unique index has just refused the draft and whose winner is already gone.</summary>
+    private sealed class RefusingStore : IPlanStore
+    {
+        public Task<Plan?> CurrentAsync(string agentId, string projectName, CancellationToken cancellationToken = default) => Task.FromResult<Plan?>(null);
+
+        public Task<Plan?> FindAsync(Guid planId, CancellationToken cancellationToken = default) => Task.FromResult<Plan?>(null);
+
+        public Task<IReadOnlyList<Plan>> ActiveAsync(string projectName, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Plan>>([]);
+
+        public Task<bool> TryAddAsync(Plan plan, CancellationToken cancellationToken = default) => Task.FromResult(false);
+
+        public Task<bool> TrySaveAsync(Plan plan, int expectedVersion, CancellationToken cancellationToken = default) => Task.FromResult(false);
     }
 }

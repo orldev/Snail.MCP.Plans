@@ -60,6 +60,10 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
 
     private static readonly string Active = nameof(PlanStatus.Active);
 
+    /// <summary>SQLITE_CONSTRAINT_UNIQUE, the extended code a unique index refuses a row with.</summary>
+    /// <remarks>The extended code rather than the primary 19, which a foreign key or a NOT NULL column returns as well.</remarks>
+    private const int UniqueViolation = 2067;
+
     /// <summary>Taken around every open: connections of one file are opened one at a time.</summary>
     /// <remarks>
     /// Microsoft.Data.Sqlite 10.0.11 and 10.0.12 mark a pooled connection active before naming its owner, and an
@@ -111,25 +115,37 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task AddAsync(Plan plan, CancellationToken cancellationToken = default)
+    public async Task<bool> TryAddAsync(Plan plan, CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
-        await using (var insert = Command(connection, transaction, $"""INSERT INTO "Plans" ({PlanColumns}) VALUES ($id, $agent, $project, $objective, $summary, $status, $version, $created, $updated, $completed);"""))
+        try
         {
+            await using var insert = Command(connection, transaction, $"""INSERT INTO "Plans" ({PlanColumns}) VALUES ($id, $agent, $project, $objective, $summary, $status, $version, $created, $updated, $completed);""");
+
             Bind(insert, plan);
             insert.Parameters.AddWithValue("$agent", plan.AgentId);
             insert.Parameters.AddWithValue("$project", plan.ProjectName);
             insert.Parameters.AddWithValue("$created", Milliseconds(plan.CreatedAt));
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
+        catch (SqliteException refused) when (refused.SqliteExtendedErrorCode == UniqueViolation)
+        {
+            return false;
+        }
 
         await WriteStepsAsync(connection, transaction, plan, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        return true;
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Steps are written, never removed. The domain deletes no step — a step leaves the work as Skipped and stays on
+    /// the record — and a writer that removed every row it had not read deleted the rows a read passes over.
+    /// </remarks>
     public async Task<bool> TrySaveAsync(Plan plan, int expectedVersion, CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken);
@@ -146,15 +162,6 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
 
             if (await update.ExecuteNonQueryAsync(cancellationToken) == 0)
                 return false;
-        }
-
-        var kept = plan.Steps.Select(step => Text(step.Id)).ToHashSet(StringComparer.Ordinal);
-
-        foreach (var gone in (await StepIdsAsync(connection, transaction, plan.Id, cancellationToken)).Where(id => !kept.Contains(id)))
-        {
-            await using var delete = Command(connection, transaction, """DELETE FROM "Steps" WHERE "Id" = $id;""");
-            delete.Parameters.AddWithValue("$id", gone);
-            await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
         await WriteStepsAsync(connection, transaction, plan, cancellationToken);
@@ -195,21 +202,11 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
         }
     }
 
-    private static async Task<List<string>> StepIdsAsync(SqliteConnection connection, SqliteTransaction transaction, Guid planId, CancellationToken cancellationToken)
-    {
-        await using var select = Command(connection, transaction, """SELECT "Id" FROM "Steps" WHERE "PlanId" = $plan;""");
-        select.Parameters.AddWithValue("$plan", Text(planId));
-
-        await using var reader = await select.ExecuteReaderAsync(cancellationToken);
-        var ids = new List<string>();
-
-        while (await reader.ReadAsync(cancellationToken))
-            ids.Add(reader.GetString(0));
-
-        return ids;
-    }
-
     /// <summary>The plans a condition selects, each with its steps in order.</summary>
+    /// <remarks>
+    /// A row whose id is not a Guid is passed over, a plan and a step alike: no tool can name it, and a single row
+    /// edited by hand must not take every other plan down with it, which is what parsing it did.
+    /// </remarks>
     private static async Task<List<Plan>> PlansAsync(SqliteConnection connection, string condition, CancellationToken cancellationToken, params (string Name, object Value)[] parameters)
     {
         var rows = new List<Plan>();
@@ -223,9 +220,12 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
 
             while (await reader.ReadAsync(cancellationToken))
             {
+                if (!Guid.TryParse(reader.GetString(0), out var id))
+                    continue;
+
                 rows.Add(new Plan
                 {
-                    Id = Guid.Parse(reader.GetString(0)),
+                    Id = id,
                     AgentId = reader.GetString(1),
                     ProjectName = reader.GetString(2),
                     Objective = reader.GetString(3),
@@ -256,9 +256,12 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
 
         while (await reader.ReadAsync(cancellationToken))
         {
+            if (!Guid.TryParse(reader.GetString(0), out var id))
+                continue;
+
             steps.Add(new Step
             {
-                Id = Guid.Parse(reader.GetString(0)),
+                Id = id,
                 OrderIndex = reader.GetInt32(2),
                 Title = reader.GetString(3),
                 Status = Enum.TryParse<StepStatus>(reader.GetString(4), out var status) ? status : StepStatus.Pending,
@@ -293,22 +296,36 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
         return command;
     }
 
+    /// <remarks>
+    /// An open connection is the caller's to dispose only once it is handed over: when switching on the foreign keys
+    /// or preparing the schema fails — a cancelled call reaches both — it is disposed here, or its pooled handle stays
+    /// open with nobody holding it.
+    /// </remarks>
     private async Task<SqliteConnection> OpenAsync(CancellationToken cancellationToken)
     {
-        var connection = new SqliteConnection(database);
-
         cancellationToken.ThrowIfCancellationRequested();
 
-        lock (Opening)
-            connection.Open();
+        var connection = new SqliteConnection(database);
 
-        await using (var foreignKeys = Command(connection, null, "PRAGMA foreign_keys = ON;"))
-            await foreignKeys.ExecuteNonQueryAsync(cancellationToken);
+        try
+        {
+            lock (Opening)
+                connection.Open();
 
-        if (!_isPrepared)
-            await PrepareAsync(connection, cancellationToken);
+            await using (var foreignKeys = Command(connection, null, "PRAGMA foreign_keys = ON;"))
+                await foreignKeys.ExecuteNonQueryAsync(cancellationToken);
 
-        return connection;
+            if (!_isPrepared)
+                await PrepareAsync(connection, cancellationToken);
+
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+
+            throw;
+        }
     }
 
     private async Task PrepareAsync(SqliteConnection connection, CancellationToken cancellationToken)
