@@ -8,7 +8,7 @@ public static class HostBuilderExtensions
 {
     extension(HostApplicationBuilder builder)
     {
-        /// <summary>Wires logging to stderr, the plans of <see cref="PlanOptions.Load"/> and the MCP server over stdio.</summary>
+        /// <summary>Wires logging to stderr, the plans of <see cref="PlanOptions.Load()"/> and the MCP server over stdio.</summary>
         public HostApplicationBuilder ConfigureMcpServer()
         {
             builder.Services

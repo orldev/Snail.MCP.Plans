@@ -76,23 +76,27 @@ capped and say so when cut.
 
 ## Configuration
 
-Everything is optional. Settings come from `SNAIL_MCP_PLANS_*` environment variables or from a
-`s3l-mcp-plans.json` file (looked up in the working directory, then `~/.config/s3l-mcp-plans/config.json`,
-then the profile; at each place the former `snail-mcp-plans.json` is still read after it); the environment wins.
+Everything is optional. Settings come from the settings file, `~/.config/s3l-mcp-plans/config.json`, with the names
+below without the prefix (`{ "AgentId": "…" }`), and from `SNAIL_MCP_PLANS_*` environment variables, which win. The file
+is found by the one chain of every Snail server (Snail.Sdk's `ServerSettings`): a file named in `SNAIL_MCP_PLANS_CONFIG`
+is the only one read, and when it is missing no file is; otherwise the first that exists of `./.s3l-mcp-plans.json`,
+`./s3l-mcp-plans.json`, `~/.config/s3l-mcp-plans/config.json`, `~/.s3l-mcp-plans.json`. A machine's settings — and any
+secret above all — belong in that file (`chmod 600`), never in a client's registration, which travels wherever it is
+copied.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `SNAIL_MCP_PLANS_AGENTID` | the folder the server runs in | Who the plans belong to. Two sessions started in the same folder share a plan on purpose — the second continues the first. |
 | `SNAIL_MCP_PLANS_DBPATH` | `~/.s3l-mcp-plans/plans.db` | The SQLite file. Point several clients at one file to see each other's plans. |
 | `SNAIL_MCP_PLANS_BUSYTIMEOUTSECONDS` | `10` | How long a write waits when another session is writing. |
-| `SNAIL_MCP_PLANS_CONFIG` | — | An explicit config file, overriding the lookup. |
+| `SNAIL_MCP_PLANS_CONFIG` | — | An explicit settings file, the only one read: when it is missing, no file is. |
 
 The database is opened in write-ahead logging mode, so a second session reads it while the first one writes.
 
 ## Building from source
 
 ```bash
-dotnet test    # 125 tests, including a contract test over the real stdio process
+dotnet test    # 129 tests, including a contract test over the real stdio process
 dotnet run --project src
 ```
 

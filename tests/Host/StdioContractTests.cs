@@ -15,6 +15,10 @@ public partial class StdioContractTests
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
 
+    private static readonly string Prefix = Snail.Sdk.Mcp.Hosting.ServerSettings.PrefixOf(PlanOptions.ServerName);
+
+    private static readonly string ConfigVariable = Snail.Sdk.Mcp.Hosting.ServerSettings.FileVariableOf(PlanOptions.ServerName);
+
     [Fact]
     public async Task Server_AtTheHandshake_NamesItselfAndTellsTheClientHowToWork()
     {
@@ -60,7 +64,7 @@ public partial class StdioContractTests
     public async Task Tools_AsListed_KeepTheGuardRules()
     {
         var database = Path.Combine(Snail.Sdk.Mcp.Testing.ServerProgram.Home, "plans.db");
-        var environment = new Dictionary<string, string?> { [EnvironmentSettings.Prefix + "DBPATH"] = database, [EnvironmentSettings.AgentVariable] = "guard-agent" };
+        var environment = new Dictionary<string, string?> { [Prefix + "DBPATH"] = database, [Prefix + "AGENTID"] = "guard-agent" };
 
         await using var client = await Snail.Sdk.Mcp.Testing.ServerProgram.StartAsync("Snail.MCP.Plans", "SNAIL_PLANS_SERVER", environment);
 
@@ -173,9 +177,7 @@ public partial class StdioContractTests
 
         public static Task<ServerSession> StartAsync()
         {
-            var databaseFile = Path.Combine(
-                Path.GetTempPath(),
-                $"snail-plans-stdio-{Guid.NewGuid().ToString("N")[..8]}.db");
+            var databaseFile = Path.Combine(TestFolder.Create(), "plans.db");
 
             var (command, arguments) = Snail.Sdk.Mcp.Testing.ServerProgram.Command("Snail.MCP.Plans", "SNAIL_PLANS_SERVER");
             var start = new ProcessStartInfo
@@ -188,9 +190,9 @@ public partial class StdioContractTests
 
             foreach (var argument in arguments)
                 start.ArgumentList.Add(argument);
-            start.Environment[EnvironmentSettings.Prefix + "DBPATH"] = databaseFile;
-            start.Environment[EnvironmentSettings.AgentVariable] = "stdio-contract-agent";
-            start.Environment.Remove(EnvironmentSettings.ConfigPathVariable);
+            start.Environment[Prefix + "DBPATH"] = databaseFile;
+            start.Environment[Prefix + "AGENTID"] = "stdio-contract-agent";
+            start.Environment[ConfigVariable] = Snail.Sdk.Mcp.Testing.ServerProgram.NoSettingsFile;
 
             var session = new ServerSession(Process.Start(start)!, databaseFile);
             session.DrainStderr();

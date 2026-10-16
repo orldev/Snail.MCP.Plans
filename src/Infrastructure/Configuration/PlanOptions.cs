@@ -1,11 +1,16 @@
+using System.Collections;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Plans.Infrastructure.Configuration;
 
-/// <summary>Server configuration: flat keys from a JSON config file or <c>SNAIL_MCP_PLANS_*</c> variables; <see cref="Load"/> is the single reader.</summary>
+/// <summary>Server configuration: flat keys from the settings file or <c>SNAIL_MCP_PLANS_*</c> variables; <see cref="Load()"/> is the single reader.</summary>
 public sealed class PlanOptions
 {
+    /// <summary>The server's short name, which names its settings file and its variables.</summary>
+    public const string ServerName = "plans";
+
     /// <summary>Database file name inside the data directory.</summary>
     public const string DefaultDatabaseFileName = "plans.db";
 
@@ -25,16 +30,15 @@ public sealed class PlanOptions
     /// <summary>Seconds a blocked write keeps retrying. Empty — <see cref="DefaultBusyTimeoutSeconds"/>.</summary>
     public int? BusyTimeoutSeconds { get; set; }
 
-    /// <summary>Reads options from the config file and the environment; the environment wins.</summary>
-    public static PlanOptions Load()
-    {
-        var builder = new ConfigurationBuilder();
+    /// <summary>Reads options from the settings file chain of <see cref="ServerSettings"/> and the variables, which win.</summary>
+    public static PlanOptions Load() => Load(ServerSettings.FileOf(ServerName), Environment.GetEnvironmentVariables());
 
-        if (ServerPaths.FindConfigFile() is { } configFile)
-            builder.AddJsonFile(Path.GetFullPath(configFile), optional: true, reloadOnChange: false);
-
-        return builder.AddEnvironment().Build().Get<PlanOptions>() ?? new PlanOptions();
-    }
+    /// <summary>Reads options from <paramref name="file"/>, when there is one, and the server's variables among <paramref name="variables"/>.</summary>
+    internal static PlanOptions Load(string? file, IDictionary variables) =>
+        new ConfigurationBuilder()
+            .AddServerSettings(ServerName, file, variables)
+            .Build()
+            .Get<PlanOptions>() ?? new PlanOptions();
 
     /// <summary>Configured directory or the default one, with a leading <c>~</c> expanded.</summary>
     public string ResolveDirectory() => ServerPaths.ExpandHome(Directory);

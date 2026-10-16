@@ -19,7 +19,7 @@ public sealed class PlanHarness : IDisposable
     /// <summary>Opens a fresh database for one test.</summary>
     public PlanHarness(string agentId = "agent-one", string projectName = "project-one")
     {
-        _file = Path.Combine(Path.GetTempPath(), $"snail-plans-{Guid.NewGuid().ToString("N")[..8]}.db");
+        _file = Path.Combine(TestFolder.Create(), "plans.db");
 
         _database = $"Data Source={_file}";
         _store = new SqlitePlanStore(_database);
