@@ -42,14 +42,14 @@ public class StoreUnderPressureTests
     {
         using var harness = new PlanHarness();
         await harness.Drafting.DraftAsync("ship the server", ["first", "second"]);
-        var plan = (await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName))!;
+        var plan = ((await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName)).FirstOrDefault())!;
         var second = harness.ProgressOf(harness.Identity.AgentId, harness.Identity.ProjectName);
 
         var answers = await Task.WhenAll(
             Task.Run(() => harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.InProgress)),
             Task.Run(() => second.AdvanceAsync(plan.Steps[1].Id.ToString(), StepStatus.InProgress)));
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(1, reread!.Steps.Count(step => step.Status is StepStatus.InProgress));
         Assert.Contains(answers, answer => answer.Contains(Messages.VersionConflict, StringComparison.Ordinal)
@@ -91,7 +91,7 @@ public class StoreUnderPressureTests
     {
         using var harness = new PlanHarness();
         await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
-        var plan = (await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName))!;
+        var plan = ((await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName)).FirstOrDefault())!;
 
         await ExecuteAsync(harness, $"""
             INSERT INTO "Steps" ("Id", "PlanId", "OrderIndex", "Title", "Status", "Note", "Attempts", "Started", "Completed")
@@ -103,6 +103,147 @@ public class StoreUnderPressureTests
         Assert.Contains("wire the tools", answer, StringComparison.Ordinal);
         Assert.Equal(1L, await ScalarAsync(harness, """SELECT COUNT(*) FROM "Steps" WHERE "Id" = 'not-a-guid';"""));
     }
+
+    /// <summary>
+    /// Passing an unreadable row over keeps the other plans alive, but an answer that then says nothing is running
+    /// lies when the file holds a plan it could not read: "nothing matched" and "nothing readable" differ.
+    /// </summary>
+    [Fact]
+    public async Task Listing_AFileWhoseOnlyActivePlanIsUnreadable_SaysARowWasNotReadRatherThanNothingRuns()
+    {
+        using var harness = new PlanHarness();
+        await harness.Plans.ActiveAsync("");
+        await ExecuteAsync(harness, UnreadablePlan("agent-two", "project-two"));
+
+        var answer = await harness.Active.RenderAsync();
+
+        Assert.NotEqual(Messages.NoActivePlans, answer);
+        Assert.Contains("could not be read", answer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Listing_AReadableAndAnUnreadablePlan_ShowsTheOneAndCountsTheOther()
+    {
+        using var harness = new PlanHarness();
+        await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
+        await ExecuteAsync(harness, UnreadablePlan("agent-two", "project-two"));
+
+        var answer = await harness.Active.RenderAsync();
+
+        Assert.Contains("ship the server", answer, StringComparison.Ordinal);
+        Assert.Contains("1 row", answer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Listing_APlanWithAnUnreadableStep_ShowsThePlanAndCountsTheStep()
+    {
+        using var harness = new PlanHarness();
+        await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
+        var plan = ((await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName)).FirstOrDefault())!;
+
+        await ExecuteAsync(harness, $"""
+            INSERT INTO "Steps" ("Id", "PlanId", "OrderIndex", "Title", "Status", "Note", "Attempts", "Started", "Completed")
+            VALUES ('not-a-guid', '{plan.Id.ToString().ToUpperInvariant()}', 999, 'edited by hand', 'Pending', '', 0, NULL, NULL);
+            """);
+
+        var answer = await harness.Active.RenderAsync();
+
+        Assert.Contains("ship the server", answer, StringComparison.Ordinal);
+        Assert.Contains($"1 row {Messages.UnreadableRows}", answer, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An unreadable active plan of this very agent and project blocks a new one through the unique index, while
+    /// every read passes it over. Without naming it, the refusal read as a race lost to a plan already settled, and
+    /// "draft again" sent the agent into the same refusal.
+    /// </summary>
+    [Fact]
+    public async Task Drafting_BlockedByAnUnreadablePlanOfThisAgent_NamesWhatBlocksIt()
+    {
+        using var harness = new PlanHarness("agent-one", "project-one");
+        await harness.Plans.ActiveAsync("");
+        await ExecuteAsync(harness, UnreadablePlan("agent-one", "project-one"));
+
+        var answer = await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
+
+        Assert.NotEqual(Messages.DraftOutraced, answer);
+        Assert.Contains("could not be read", answer, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The plan an agent walks is printed whole by get_current_plan, update_step and revise_plan. A step passed over on
+    /// the read left each of them short by one step with nothing said, so the agent counted progress over a list it
+    /// did not have.
+    /// </summary>
+    [Fact]
+    public async Task Current_OfAPlanWithAnUnreadableStep_SaysARowWasNotRead()
+    {
+        using var harness = new PlanHarness();
+        var plan = await PlanWithAnUnreadableStepAsync(harness);
+
+        var answer = await harness.Progress.CurrentAsync();
+
+        Assert.Contains("write the store", answer, StringComparison.Ordinal);
+        Assert.Contains($"1 row {Messages.UnreadableRows}", answer, StringComparison.Ordinal);
+        Assert.Contains(plan.Id.ToString(), answer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Advancing_APlanWithAnUnreadableStep_SaysARowWasNotRead()
+    {
+        using var harness = new PlanHarness();
+        var plan = await PlanWithAnUnreadableStepAsync(harness);
+
+        var answer = await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.InProgress);
+
+        Assert.Contains($"1 row {Messages.UnreadableRows}", answer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Revising_APlanWithAnUnreadableStep_SaysARowWasNotRead()
+    {
+        using var harness = new PlanHarness();
+        var plan = await PlanWithAnUnreadableStepAsync(harness);
+
+        var answer = await harness.Revision.ReviseAsync(plan.Id.ToString(), plan.Version, [new StepChange(ChangeKind.Add, Title: "wire the tools")]);
+
+        Assert.Contains($"1 row {Messages.UnreadableRows}", answer, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The agent's own active plan unreadable: get_current_plan said there was none, which invited a create_plan the
+    /// unique index then refused — the plan is there, it only cannot be read.
+    /// </summary>
+    [Fact]
+    public async Task Current_WhenThisAgentsActivePlanIsUnreadable_SaysSoRatherThanThatThereIsNone()
+    {
+        using var harness = new PlanHarness("agent-one", "project-one");
+        await harness.Plans.ActiveAsync("");
+        await ExecuteAsync(harness, UnreadablePlan("agent-one", "project-one"));
+
+        var answer = await harness.Progress.CurrentAsync();
+
+        Assert.NotEqual(Messages.NoCurrentPlan, answer);
+        Assert.Contains("could not be read", answer, StringComparison.Ordinal);
+    }
+
+    private static async Task<Plan> PlanWithAnUnreadableStepAsync(PlanHarness harness)
+    {
+        await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
+        var plan = (await harness.Plans.ActiveAsync(harness.Identity.ProjectName))[0];
+
+        await ExecuteAsync(harness, $"""
+            INSERT INTO "Steps" ("Id", "PlanId", "OrderIndex", "Title", "Status", "Note", "Attempts", "Started", "Completed")
+            VALUES ('not-a-guid', '{plan.Id.ToString().ToUpperInvariant()}', 999, 'edited by hand', 'Pending', '', 0, NULL, NULL);
+            """);
+
+        return plan;
+    }
+
+    private static string UnreadablePlan(string agent, string project) => $"""
+        INSERT INTO "Plans" ("Id", "AgentId", "ProjectName", "Objective", "Summary", "Status", "Version", "Created", "Updated", "Completed")
+        VALUES ('not-a-guid-{agent}', '{agent}', '{project}', 'edited by hand', '', 'Active', 1, 0, 0, NULL);
+        """;
 
     private static async Task ExecuteAsync(PlanHarness harness, string sql)
     {

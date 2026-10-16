@@ -83,7 +83,7 @@ public class PlanStoreTests
         Assert.True(await harness.Plans.TrySaveAsync(plan with { Version = 2, Summary = "first" }, 1));
         Assert.False(await harness.Plans.TrySaveAsync(plan with { Version = 2, Summary = "second" }, 1));
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal("first", reread!.Summary);
     }

@@ -18,7 +18,7 @@ public class PlanRevisionTests
         await harness.Revision.ReviseAsync(plan.Id.ToString(), plan.Version, [Add("wire the tools")]);
         var late = await harness.Revision.ReviseAsync(plan.Id.ToString(), plan.Version, [Add("write the readme")]);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(Messages.VersionConflict, late);
         Assert.Equal(["write the store", "wire the tools"], reread!.Steps.Select(step => step.Title));
@@ -32,7 +32,7 @@ public class PlanRevisionTests
 
         await harness.Revision.ReviseAsync(plan.Id.ToString(), plan.Version, [Add("write the readme")]);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(["write the store", "wire the tools", "write the readme"], reread!.Steps.Select(step => step.Title));
     }
@@ -49,7 +49,7 @@ public class PlanRevisionTests
             plan.Id.ToString(), plan.Version,
             [Add("write the schema") with { After = plan.Steps[0].Id.ToString() }]);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(["write the store", "write the schema", "wire the tools"], reread!.Steps.Select(step => step.Title));
     }
@@ -64,7 +64,7 @@ public class PlanRevisionTests
             plan.Id.ToString(), plan.Version,
             [new StepChange(ChangeKind.Reorder, StepId: plan.Steps[2].Id.ToString())]);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(["write the readme", "write the store", "wire the tools"], reread!.Steps.Select(step => step.Title));
     }
@@ -81,7 +81,7 @@ public class PlanRevisionTests
             plan.Id.ToString(), plan.Version,
             [new StepChange(ChangeKind.Skip, StepId: plan.Steps[1].Id.ToString(), Reason: "the tools moved to another server")]);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
         var skipped = reread!.Steps.Single(step => step.Status is StepStatus.Skipped);
 
         Assert.Equal(2, reread.Steps.Count);
@@ -111,7 +111,7 @@ public class PlanRevisionTests
         await harness.Progress.AdvanceAsync(step, StepStatus.InProgress);
         await harness.Progress.AdvanceAsync(step, StepStatus.Done, "stored");
 
-        var current = await harness.Plans.FindAsync(plan.Id);
+        var current = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         var answer = await harness.Revision.ReviseAsync(
             plan.Id.ToString(), current!.Version,
@@ -144,7 +144,7 @@ public class PlanRevisionTests
             summary: "the approach does not work",
             outcome: nameof(PlanStatus.Failed));
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(PlanStatus.Failed, reread!.Status);
         Assert.Equal("the approach does not work", reread.Summary);
@@ -163,11 +163,11 @@ public class PlanRevisionTests
         await harness.Progress.AdvanceAsync(step, StepStatus.InProgress);
         await harness.Progress.AdvanceAsync(step, StepStatus.Done, "stored");
 
-        var completed = await harness.Plans.FindAsync(plan.Id);
+        var completed = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         await harness.Revision.ReviseAsync(plan.Id.ToString(), completed!.Version, [Add("write the readme")]);
 
-        var reopened = await harness.Plans.FindAsync(plan.Id);
+        var reopened = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(PlanStatus.Active, reopened!.Status);
         Assert.Null(reopened.CompletedAt);
@@ -211,7 +211,7 @@ public class PlanRevisionTests
                 new StepChange(ChangeKind.Reorder, StepId: plan.Steps[3].Id.ToString(), After: plan.Steps[1].Id.ToString())
             ]);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(["beta", "delta", "gamma", "alpha"], reread!.Steps.Select(step => step.Title));
     }
@@ -229,7 +229,7 @@ public class PlanRevisionTests
                 new StepChange(ChangeKind.Reorder, StepId: plan.Steps[2].Id.ToString(), After: plan.Steps[0].Id.ToString())
             ]);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(["alpha", "gamma", "inserted", "beta"], reread!.Steps.Select(step => step.Title));
     }
@@ -251,7 +251,7 @@ public class PlanRevisionTests
                 new StepChange(ChangeKind.Add, Title: "third", After: anchor)
             ]);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(["alpha", "first", "second", "third", "omega"], reread!.Steps.Select(step => step.Title));
     }
@@ -267,7 +267,7 @@ public class PlanRevisionTests
         var answer = await harness.Revision.ReviseAsync(
             plan.Id.ToString(), plan.Version, [Add("beta"), Add("gamma")]);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
         var added = reread!.Steps.Where(step => step.Title is "beta" or "gamma").ToList();
 
         Assert.Contains("added 2:", answer, StringComparison.Ordinal);
@@ -280,6 +280,6 @@ public class PlanRevisionTests
     {
         await harness.Drafting.DraftAsync("ship the server", steps);
 
-        return (await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName))!;
+        return ((await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName)).FirstOrDefault())!;
     }
 }

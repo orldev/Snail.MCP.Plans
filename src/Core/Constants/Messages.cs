@@ -26,6 +26,21 @@ public static class Messages
     public const string DraftOutraced =
         "Another session of this agent drafted a plan at the same moment and has already settled it. Draft again if the work still needs a plan.";
 
+    /// <summary>Rows of the plans file a read passed over, said after their count.</summary>
+    /// <remarks>Said because a read that passes a row over keeps the other plans alive but would otherwise answer as if the row were not there.</remarks>
+    public const string UnreadableRows =
+        "of the plans file could not be read and are left out: an id that is not a Guid, most likely edited by hand. Fix or delete them in the database file.";
+
+    /// <summary>The agent's active plan exists but cannot be read.</summary>
+    /// <remarks>Said instead of "no active plan", which invited a create_plan the unique index would refuse: the plan is there, it only cannot be read.</remarks>
+    public const string CurrentPlanUnreadable =
+        "This agent has an active plan in this project, but it could not be read — its id is not a Guid, most likely edited by hand. Fix or delete that row in the plans file; until then no new plan can be drafted here.";
+
+    /// <summary>A draft refused by an active plan of this agent that no read can see.</summary>
+    /// <remarks>The unique index sees a row every read passes over; without this the refusal read as a lost race and "draft again" led into the same refusal.</remarks>
+    public const string DraftBlockedByUnreadable =
+        "This project holds an active plan that could not be read — its id is not a Guid, most likely edited by hand — and while it is there no new plan can be drafted here. Fix or delete that row in the plans file, then draft again.";
+
     /// <summary>Nothing is being worked on anywhere.</summary>
     public const string NoActivePlans = "No active plans. Nothing is being worked on right now.";
 

@@ -37,20 +37,33 @@ public static class PlanView
 
     /// <summary>Names the steps a revision created, so their ids need not be hunted for in the plan below.</summary>
     /// <remarks>On a long plan the printed steps run past the answer limit, and the ids of what was just added were the part that got cut.</remarks>
-    public static string Added(Plan plan, IReadOnlyList<Step> added)
+    public static string Added(IReadOnlyList<Step> added)
     {
         if (added.Count is 0)
             return "";
 
-        var lines = added
-            .Select(step => plan.Steps.FirstOrDefault(kept => kept.Id == step.Id) ?? step)
-            .Select(step => $"  {step.Id} {step.Title}");
+        var lines = added.Select(step => $"  {step.Id} {step.Title}");
 
         return string.Join('\n', [$"added {added.Count}:", .. lines]);
     }
 
+    /// <summary>The line naming the rows a read passed over, or nothing when it passed over none.</summary>
+    /// <remarks>Every answer that prints a plan carries it: a plan printed without a step it could not read looks complete, and the agent counts its progress over that list.</remarks>
+    public static string Unread(PlanListing read) =>
+        read.Unreadable > 0 ? $"note: {Rows(read.Unreadable)} {Messages.UnreadableRows}" : "";
+
+    /// <summary>Joins the two lines an answer opens with, leaving out an empty one.</summary>
+    /// <remarks>Two lines and no array: a params array and a filtered join cost update_step 0.14 KB a call, measured, for lines that are almost always empty.</remarks>
+    public static string Prologue(string first, string second)
+    {
+        if (first.Length is 0)
+            return second;
+
+        return second.Length is 0 ? first : $"{first}\n{second}";
+    }
+
     /// <summary>What <c>update_step</c> answers: the new counts, then what to do next.</summary>
-    public static string Advanced(Plan plan, Step reported, Step? next, DateTimeOffset now, string hint = "")
+    public static string Advanced(Plan plan, Step reported, Step? next, string hint = "")
     {
         var text = new StringBuilder();
 
@@ -71,14 +84,17 @@ public static class PlanView
     }
 
     /// <summary>What <c>list_active_plans</c> answers: one block per plan, the stalest last.</summary>
-    public static string Active(IReadOnlyList<Plan> plans, DateTimeOffset now)
+    public static string Active(PlanListing plans, DateTimeOffset now)
     {
-        if (plans.Count is 0)
+        if (plans.Count is 0 && plans.Unreadable is 0)
             return Messages.NoActivePlans;
 
         var text = new StringBuilder();
 
         text.AppendLine($"# Active plans: {plans.Count}");
+
+        if (plans.Unreadable > 0)
+            text.AppendLine(Unread(plans));
 
         foreach (var plan in plans)
         {
@@ -124,6 +140,8 @@ public static class PlanView
         plan.AgentId.Equals(plan.ProjectName, StringComparison.OrdinalIgnoreCase)
             ? plan.ProjectName
             : $"{plan.ProjectName} · {plan.AgentId}";
+
+    private static string Rows(int count) => count is 1 ? "1 row" : $"{count} rows";
 
     private static string Counted(Progress progress)
     {

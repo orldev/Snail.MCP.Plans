@@ -56,13 +56,16 @@ public static class Sample
     public static Guid Id(int plan, int step) => new(plan, (short)step, 0, [1, 2, 3, 4, 5, 6, 7, 8]);
 
     /// <summary>A store holding one plan that never changes: every call starts from the same state.</summary>
+    /// <remarks>The listing is built once: a store that allocated its answer per call would put its own cost into every number measured through it.</remarks>
     public sealed class FixedStore(Plan plan) : IPlanStore
     {
-        public Task<Plan?> CurrentAsync(string agentId, string projectName, CancellationToken cancellationToken = default) => Task.FromResult<Plan?>(plan);
+        private readonly PlanListing _read = new([plan], 0, 0);
 
-        public Task<Plan?> FindAsync(Guid planId, CancellationToken cancellationToken = default) => Task.FromResult<Plan?>(plan);
+        public Task<PlanListing> CurrentAsync(string agentId, string projectName, CancellationToken cancellationToken = default) => Task.FromResult(_read);
 
-        public Task<IReadOnlyList<Plan>> ActiveAsync(string projectName, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Plan>>([plan]);
+        public Task<PlanListing> FindAsync(Guid planId, CancellationToken cancellationToken = default) => Task.FromResult(_read);
+
+        public Task<PlanListing> ActiveAsync(string projectName, CancellationToken cancellationToken = default) => Task.FromResult(_read);
 
         public Task<bool> TryAddAsync(Plan plan, CancellationToken cancellationToken = default) => Task.FromResult(true);
 

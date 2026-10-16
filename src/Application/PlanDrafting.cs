@@ -38,8 +38,10 @@ public sealed class PlanDrafting(IPlanStore plans, IAgentIdentity identity, Time
         var project = Projects.Resolve(projectName, identity);
         var now = clock.GetUtcNow();
 
-        if (await plans.CurrentAsync(identity.AgentId, project, cancellationToken) is { } active)
-            return PlanView.Render(active, now, Messages.PlanAlreadyActive);
+        var current = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
+
+        if (current.Count > 0 || current.UnreadablePlans > 0)
+            return Blocked(current, now);
 
         var plan = new Plan
         {
@@ -64,14 +66,22 @@ public sealed class PlanDrafting(IPlanStore plans, IAgentIdentity identity, Time
         return PlanView.Render(plan, now, await NeighboursAsync(project, cancellationToken));
     }
 
+    /// <remarks>
+    /// The index refused the insert because an active plan of this agent and project exists. When the read that
+    /// follows finds none, readable or not, it was settled a moment ago.
+    /// </remarks>
     private async Task<string> OutracedAsync(string project, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var winner = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
+        var current = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
 
-        return winner is null
-            ? Messages.DraftOutraced
-            : PlanView.Render(winner, now, Messages.PlanAlreadyActive);
+        return current.Count > 0 || current.UnreadablePlans > 0 ? Blocked(current, now) : Messages.DraftOutraced;
     }
+
+    /// <remarks>An active plan of this agent blocks a new one whether it can be read or not; only the readable one can be shown.</remarks>
+    private static string Blocked(PlanListing current, DateTimeOffset now) =>
+        current.Count > 0
+            ? PlanView.Render(current[0], now, Messages.PlanAlreadyActive)
+            : Messages.DraftBlockedByUnreadable;
 
     /// <remarks>Named rather than hidden: both plans are legitimate, and the one thing the agent must not do is report steps of the plan it does not own.</remarks>
     private async Task<string> NeighboursAsync(string project, CancellationToken cancellationToken)

@@ -8,14 +8,15 @@ namespace Snail.MCP.Plans.Core.Interfaces;
 /// </remarks>
 public interface IPlanStore
 {
-    /// <summary>The agent's active plan in a project, or <c>null</c> when it has none.</summary>
-    Task<Plan?> CurrentAsync(string agentId, string projectName, CancellationToken cancellationToken = default);
+    /// <summary>The agent's active plan in a project — none or one — with the rows that could not be read.</summary>
+    /// <remarks>A listing rather than a plan or null: "no active plan" and "an active plan that cannot be read" call for different answers, and only the count tells them apart.</remarks>
+    Task<PlanListing> CurrentAsync(string agentId, string projectName, CancellationToken cancellationToken = default);
 
-    /// <summary>A plan by identity, whatever its status.</summary>
-    Task<Plan?> FindAsync(Guid planId, CancellationToken cancellationToken = default);
+    /// <summary>A plan by identity, whatever its status — none or one — with the step rows that could not be read.</summary>
+    Task<PlanListing> FindAsync(Guid planId, CancellationToken cancellationToken = default);
 
-    /// <summary>Every active plan, newest activity first; an empty project name spans all of them.</summary>
-    Task<IReadOnlyList<Plan>> ActiveAsync(string projectName, CancellationToken cancellationToken = default);
+    /// <summary>Every active plan, newest activity first, with the rows that could not be read; an empty project name spans all of them.</summary>
+    Task<PlanListing> ActiveAsync(string projectName, CancellationToken cancellationToken = default);
 
     /// <summary>Stores a freshly drafted plan; <c>false</c> means the agent already has an active plan in that project.</summary>
     /// <remarks>

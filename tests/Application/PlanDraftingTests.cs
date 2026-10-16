@@ -16,7 +16,7 @@ public class PlanDraftingTests
 
         await harness.Drafting.DraftAsync("ship the server", ["write the store", "wire the tools"]);
 
-        var stored = await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName);
+        var stored = (await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName)).FirstOrDefault();
 
         Assert.NotNull(stored);
         Assert.Equal("ship the server", stored.Objective);
@@ -130,11 +130,11 @@ public class PlanDraftingTests
     /// <summary>A store whose unique index has just refused the draft and whose winner is already gone.</summary>
     private sealed class RefusingStore : IPlanStore
     {
-        public Task<Plan?> CurrentAsync(string agentId, string projectName, CancellationToken cancellationToken = default) => Task.FromResult<Plan?>(null);
+        public Task<PlanListing> CurrentAsync(string agentId, string projectName, CancellationToken cancellationToken = default) => Task.FromResult(new PlanListing([], 0, 0));
 
-        public Task<Plan?> FindAsync(Guid planId, CancellationToken cancellationToken = default) => Task.FromResult<Plan?>(null);
+        public Task<PlanListing> FindAsync(Guid planId, CancellationToken cancellationToken = default) => Task.FromResult(new PlanListing([], 0, 0));
 
-        public Task<IReadOnlyList<Plan>> ActiveAsync(string projectName, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Plan>>([]);
+        public Task<PlanListing> ActiveAsync(string projectName, CancellationToken cancellationToken = default) => Task.FromResult(new PlanListing([], 0, 0));
 
         public Task<bool> TryAddAsync(Plan plan, CancellationToken cancellationToken = default) => Task.FromResult(false);
 

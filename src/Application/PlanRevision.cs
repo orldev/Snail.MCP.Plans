@@ -27,8 +27,12 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         if (outcome.Length > 0 && !Enum.TryParse<PlanStatus>(outcome, ignoreCase: true, out _))
             return UnknownOutcome(outcome);
 
-        if (await plans.FindAsync(wanted, cancellationToken) is not { } plan)
+        var read = await plans.FindAsync(wanted, cancellationToken);
+
+        if (read.Count is 0)
             return Messages.PlanNotFound;
+
+        var plan = read[0];
 
         if (!plan.AgentId.Equals(identity.AgentId, StringComparison.OrdinalIgnoreCase))
             return NotYours(plan);
@@ -53,7 +57,7 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         if (!await plans.TrySaveAsync(updated, plan.Version, cancellationToken))
             return Messages.VersionConflict;
 
-        return PlanView.Render(updated, now, PlanView.Added(updated, rework.AddedSteps));
+        return PlanView.Render(updated, now, PlanView.Prologue(PlanView.Added(rework.AddedSteps), PlanView.Unread(read)));
     }
 
     private static Plan Reconciled(Plan plan, IReadOnlyList<Step> steps, string summary, string outcome, DateTimeOffset now)

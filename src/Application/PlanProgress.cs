@@ -31,19 +31,20 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
             if (!Guid.TryParse(planId, out var named))
                 return Messages.PlanNotFound;
 
-            if (await plans.FindAsync(named, cancellationToken) is not { } found)
-                return Messages.PlanNotFound;
+            var found = await plans.FindAsync(named, cancellationToken);
 
-            return PlanView.Render(found, now, Borrowed(found));
+            return found.Count is 0
+                ? Messages.PlanNotFound
+                : PlanView.Render(found[0], now, PlanView.Prologue(Borrowed(found[0]), PlanView.Unread(found)));
         }
 
         var project = Projects.Resolve(projectName, identity);
+        var current = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
 
-        var plan = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
+        if (current.Count > 0)
+            return PlanView.Render(current[0], now, PlanView.Unread(current));
 
-        return plan is null
-            ? Messages.NoCurrentPlan
-            : PlanView.Render(plan, now);
+        return current.UnreadablePlans > 0 ? Messages.CurrentPlanUnreadable : Messages.NoCurrentPlan;
     }
 
     private string Borrowed(Plan plan) =>
@@ -68,8 +69,12 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
         var project = Projects.Resolve(projectName, identity);
         var now = clock.GetUtcNow();
 
-        if (await plans.CurrentAsync(identity.AgentId, project, cancellationToken) is not { } plan)
-            return Messages.NoCurrentPlan;
+        var read = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
+
+        if (read.Count is 0)
+            return read.UnreadablePlans > 0 ? Messages.CurrentPlanUnreadable : Messages.NoCurrentPlan;
+
+        var plan = read[0];
 
         if (plan.Steps.FirstOrDefault(step => step.Id == wanted) is not { } current)
             return Messages.StepNotFound;
@@ -98,9 +103,9 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
             .OrderBy(step => step.OrderIndex)
             .FirstOrDefault(step => step.Status is StepStatus.Pending);
 
-        var hint = status is StepStatus.Failed ? Messages.AfterFailure : "";
+        var hint = PlanView.Prologue(PlanView.Unread(read), status is StepStatus.Failed ? Messages.AfterFailure : "");
 
-        return PlanView.Advanced(updated, reported, next, now, hint);
+        return PlanView.Advanced(updated, reported, next, hint);
     }
 
     /// <remarks>Going back to <see cref="StepStatus.Pending"/> keeps the attempt that was spent: the step was taken up, and hiding that would understate what the plan cost.</remarks>

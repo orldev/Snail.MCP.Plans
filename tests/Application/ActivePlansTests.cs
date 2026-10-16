@@ -126,6 +126,6 @@ public class ActivePlansTests
     {
         await harness.Drafting.DraftAsync("ship the server", steps);
 
-        return (await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName))!;
+        return ((await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName)).FirstOrDefault())!;
     }
 }

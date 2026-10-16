@@ -55,7 +55,7 @@ public class PlanProgressTests
         await harness.Progress.AdvanceAsync(step, StepStatus.Failed, "the file was locked");
         await harness.Progress.AdvanceAsync(step, StepStatus.InProgress);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(2, reread!.Steps[0].Attempts);
     }
@@ -72,7 +72,7 @@ public class PlanProgressTests
         await harness.Progress.AdvanceAsync(step, StepStatus.InProgress);
         var answer = await harness.Progress.AdvanceAsync(step, StepStatus.Failed, "the file was locked");
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(PlanStatus.Active, reread!.Status);
         Assert.Contains(Messages.AfterFailure, answer, StringComparison.Ordinal);
@@ -124,7 +124,7 @@ public class PlanProgressTests
         await harness.Progress.AdvanceAsync(step, StepStatus.InProgress);
         var answer = await harness.Progress.AdvanceAsync(step, StepStatus.Done, "stored");
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(PlanStatus.Completed, reread!.Status);
         Assert.Contains(Messages.PlanFinished, answer, StringComparison.Ordinal);
@@ -184,7 +184,7 @@ public class PlanProgressTests
         await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.Pending, "taken up by mistake");
         await harness.Progress.AdvanceAsync(plan.Steps[1].Id.ToString(), StepStatus.InProgress);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(StepStatus.Pending, reread!.Steps[0].Status);
         Assert.Equal(StepStatus.InProgress, reread.Steps[1].Status);
@@ -202,7 +202,7 @@ public class PlanProgressTests
         await harness.Progress.AdvanceAsync(step, StepStatus.InProgress);
         await harness.Progress.AdvanceAsync(step, StepStatus.Pending);
 
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(1, reread!.Steps[0].Attempts);
         Assert.Null(reread.Steps[0].CompletedAt);
@@ -257,6 +257,6 @@ public class PlanProgressTests
     {
         await harness.Drafting.DraftAsync("ship the server", steps);
 
-        return (await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName))!;
+        return ((await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName)).FirstOrDefault())!;
     }
 }

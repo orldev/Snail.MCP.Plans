@@ -36,7 +36,7 @@ public class OutputBudgetTests
 
         await harness.Drafting.DraftAsync("ship it", [.. Enumerable.Range(1, 60).Select(number => $"step {number}")]);
 
-        var plan = (await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName))!;
+        var plan = ((await harness.Plans.CurrentAsync(harness.Identity.AgentId, harness.Identity.ProjectName)).FirstOrDefault())!;
         var essay = new string('n', 400);
 
         foreach (var step in plan.Steps.Take(55))
@@ -46,7 +46,7 @@ public class OutputBudgetTests
         }
 
         var answer = await harness.Progress.CurrentAsync();
-        var reread = await harness.Plans.FindAsync(plan.Id);
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.DoesNotContain(OutputBudget.TruncationMarker, answer, StringComparison.Ordinal);
         Assert.All(reread!.Steps, step => Assert.Contains(step.Id.ToString(), answer, StringComparison.Ordinal));

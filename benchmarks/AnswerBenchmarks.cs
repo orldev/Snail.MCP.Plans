@@ -10,13 +10,13 @@ public class AnswerBenchmarks
 {
     private Plan _plan = null!;
 
-    private IReadOnlyList<Plan> _active = [];
+    private PlanListing _active = new([], 0, 0);
 
     [GlobalSetup]
     public void Setup()
     {
         _plan = Sample.Of(0, 60);
-        _active = [.. Enumerable.Range(0, 12).Select(number => Sample.Of(number, 25))];
+        _active = new PlanListing([.. Enumerable.Range(0, 12).Select(number => Sample.Of(number, 25))], 0, 0);
     }
 
     /// <summary>A plan of sixty steps, as get_current_plan prints it.</summary>
