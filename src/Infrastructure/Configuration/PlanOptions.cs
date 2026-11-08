@@ -5,7 +5,7 @@ using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Plans.Infrastructure.Configuration;
 
-/// <summary>Server configuration: flat keys from the settings file or <c>SNAIL_MCP_PLANS_*</c> variables; <see cref="Load()"/> is the single reader.</summary>
+/// <summary>Server configuration: flat keys from the settings file or <c>SNAIL_MCP_PLANS_*</c> variables, bound by <see cref="From"/> from the settings the host read once.</summary>
 public sealed class PlanOptions
 {
     /// <summary>The server's short name, which names its settings file and its variables.</summary>
@@ -21,7 +21,7 @@ public sealed class PlanOptions
     /// <summary>Identity of the agent. Empty — the working directory of the process.</summary>
     public string? AgentId { get; set; }
 
-    /// <summary>Data directory. Empty — <see cref="ServerPaths.DefaultDataDirectory"/>.</summary>
+    /// <summary>Data directory. Empty — <c>~/.s3l-mcp-plans</c> (<see cref="ServerFolders.DataDirectory(string)"/>).</summary>
     public string? Directory { get; set; }
 
     /// <summary>Database file or connection string. Empty — <c>{Directory}/plans.db</c>.</summary>
@@ -30,18 +30,18 @@ public sealed class PlanOptions
     /// <summary>Seconds a blocked write keeps retrying. Empty — <see cref="DefaultBusyTimeoutSeconds"/>.</summary>
     public int? BusyTimeoutSeconds { get; set; }
 
-    /// <summary>Reads options from the settings file chain of <see cref="ServerSettings"/> and the variables, which win.</summary>
-    public static PlanOptions Load() => Load(ServerSettings.FileOf(ServerName), Environment.GetEnvironmentVariables());
+    /// <summary>Binds the options from the server's settings: its settings file and its variables, which win (<see cref="ServerSettings"/>).</summary>
+    /// <remarks>The host has read them already (<see cref="McpHost.CreateBuilder(string[])"/>); reading them a second time here could only disagree with it.</remarks>
+    public static PlanOptions From(IConfiguration settings) => settings.Get<PlanOptions>() ?? new PlanOptions();
 
     /// <summary>Reads options from <paramref name="file"/>, when there is one, and the server's variables among <paramref name="variables"/>.</summary>
     internal static PlanOptions Load(string? file, IDictionary variables) =>
-        new ConfigurationBuilder()
+        From(new ConfigurationBuilder()
             .AddServerSettings(ServerName, file, variables)
-            .Build()
-            .Get<PlanOptions>() ?? new PlanOptions();
+            .Build());
 
-    /// <summary>Configured directory or the default one, with a leading <c>~</c> expanded.</summary>
-    public string ResolveDirectory() => ServerPaths.ExpandHome(Directory);
+    /// <summary>Configured directory or the default one, absolute, with a leading <c>~</c> made the user's home.</summary>
+    public string ResolveDirectory() => ServerFolders.FullPath(Directory, ServerFolders.DataDirectory(ServerName));
 
     /// <summary>Connection string with the busy timeout applied.</summary>
     public string ResolveConnectionString()
@@ -55,7 +55,7 @@ public sealed class PlanOptions
         {
             "" => Path.Combine(ResolveDirectory(), DefaultDatabaseFileName),
             ":memory:" => configured,
-            _ => ServerPaths.ExpandHome(configured)
+            _ => ServerFolders.FullPath(configured)
         };
 
         return new SqliteConnectionStringBuilder

@@ -8,11 +8,11 @@ public static class HostBuilderExtensions
 {
     extension(HostApplicationBuilder builder)
     {
-        /// <summary>Wires logging to stderr, the plans of <see cref="PlanOptions.Load()"/> and the MCP server over stdio.</summary>
+        /// <summary>Wires the plans of the settings the host read (<see cref="PlanOptions.From"/>) and the MCP server over stdio.</summary>
         public HostApplicationBuilder ConfigureMcpServer()
         {
             builder.Services
-                .AddPlans(PlanOptions.Load())
+                .AddPlans(PlanOptions.From(builder.Configuration))
                 .AddMcpTransport();
 
             return builder;

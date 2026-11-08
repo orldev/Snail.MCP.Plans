@@ -8,6 +8,7 @@ using Snail.MCP.Plans.Infrastructure.Identity;
 using Snail.MCP.Plans.Infrastructure.Persistence;
 using Snail.MCP.Plans.Tools;
 using Snail.Sdk.Mcp.Hosting;
+using Snail.Sdk.Mcp.Hosting.Answers;
 
 namespace Snail.MCP.Plans.Host.Extensions;
 
@@ -64,6 +65,7 @@ public static class ServiceCollectionExtensions
                     server.ServerInfo = ServerIdentity.Of(typeof(ServiceCollectionExtensions).Assembly);
                     server.ServerInstructions = ServerGuidance.Instructions;
                 })
+                .ExplainFailures()
                 .WithStdioServerTransport()
                 .WithTools<PlanTools>(ToolJson.Options(PlansJson.Default));
 

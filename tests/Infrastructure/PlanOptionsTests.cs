@@ -1,5 +1,7 @@
 using System.Collections;
+using Microsoft.Data.Sqlite;
 using Snail.MCP.Plans.Infrastructure.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Plans.Tests.Infrastructure;
 
@@ -47,6 +49,34 @@ public sealed class PlanOptionsTests : IDisposable
 
         Assert.Null(options.AgentId);
         Assert.Equal(PlanOptions.DefaultBusyTimeoutSeconds, options.ResolveBusyTimeout());
+    }
+
+    /// No directory configured is the server's data folder, never the working directory.
+    [Fact]
+    public void ResolveDirectory_WithNoneConfigured_IsTheDataFolder()
+    {
+        var directory = new PlanOptions { Directory = "  " }.ResolveDirectory();
+
+        Assert.Equal(ServerFolders.DataDirectory(PlanOptions.ServerName), directory);
+    }
+
+    /// A person writes ~/plans in a settings file, and no shell expands it on the way to the server.
+    [Fact]
+    public void ResolveDirectory_WithALeadingTilde_IsUnderTheHome()
+    {
+        var directory = new PlanOptions { Directory = "~/plans" }.ResolveDirectory();
+
+        Assert.Equal(Path.Combine(ServerFolders.Home, "plans"), directory);
+    }
+
+    /// A relative database path is the working directory's, made absolute, with the busy timeout beside it.
+    [Fact]
+    public void ResolveConnectionString_WithARelativeFile_MakesItAbsolute()
+    {
+        var connection = new SqliteConnectionStringBuilder(new PlanOptions { DbPath = "plans.db" }.ResolveConnectionString());
+
+        Assert.Equal(Path.GetFullPath("plans.db"), connection.DataSource);
+        Assert.Equal(PlanOptions.DefaultBusyTimeoutSeconds, connection.DefaultTimeout);
     }
 
     private string WriteSettings(string json)
