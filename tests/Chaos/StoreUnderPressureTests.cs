@@ -29,7 +29,7 @@ public class StoreUnderPressureTests
         var answers = await Task.WhenAll(drafting.Select(one =>
             Task.Run(() => one.DraftAsync("ship the server", ["write the store"]))));
 
-        Assert.All(answers, answer => Assert.False(string.IsNullOrWhiteSpace(answer)));
+        Assert.All(answers, answer => Assert.False(string.IsNullOrWhiteSpace(answer.Words())));
         Assert.Single(await harness.Plans.ActiveAsync(""));
     }
 
@@ -52,8 +52,7 @@ public class StoreUnderPressureTests
         var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(1, reread!.Steps.Count(step => step.Status is StepStatus.InProgress));
-        Assert.Contains(answers, answer => answer.Contains(Messages.VersionConflict, StringComparison.Ordinal)
-            || answer.Contains("one step at a time", StringComparison.Ordinal));
+        Assert.Contains(answers, answer => answer.Type is FailureTypes.VersionConflict or FailureTypes.StepInProgress);
     }
 
     /// <summary>
@@ -100,7 +99,7 @@ public class StoreUnderPressureTests
 
         var answer = await harness.Revision.ReviseAsync(plan.Id.ToString(), plan.Version, [new StepChange(ChangeKind.Add, Title: "wire the tools")]);
 
-        Assert.Contains("wire the tools", answer, StringComparison.Ordinal);
+        Assert.Contains("wire the tools", answer.Words(), StringComparison.Ordinal);
         Assert.Equal(1L, await ScalarAsync(harness, """SELECT COUNT(*) FROM "Steps" WHERE "Id" = 'not-a-guid';"""));
     }
 
@@ -117,8 +116,8 @@ public class StoreUnderPressureTests
 
         var answer = await harness.Active.RenderAsync();
 
-        Assert.NotEqual(Messages.NoActivePlans, answer);
-        Assert.Contains("could not be read", answer, StringComparison.Ordinal);
+        Assert.NotEqual(Messages.NoActivePlans, answer.Words());
+        Assert.Contains("could not be read", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -130,8 +129,8 @@ public class StoreUnderPressureTests
 
         var answer = await harness.Active.RenderAsync();
 
-        Assert.Contains("ship the server", answer, StringComparison.Ordinal);
-        Assert.Contains("1 row", answer, StringComparison.Ordinal);
+        Assert.Contains("ship the server", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("1 row", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -148,8 +147,8 @@ public class StoreUnderPressureTests
 
         var answer = await harness.Active.RenderAsync();
 
-        Assert.Contains("ship the server", answer, StringComparison.Ordinal);
-        Assert.Contains($"1 row {Messages.UnreadableRows}", answer, StringComparison.Ordinal);
+        Assert.Contains("ship the server", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains($"1 row {Messages.UnreadableRows}", answer.Words(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -166,8 +165,7 @@ public class StoreUnderPressureTests
 
         var answer = await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
 
-        Assert.NotEqual(Messages.DraftOutraced, answer);
-        Assert.Contains("could not be read", answer, StringComparison.Ordinal);
+        answer.IsRefused(Messages.DraftBlockedByUnreadable, FailureTypes.Unreadable);
     }
 
     /// <summary>
@@ -183,9 +181,9 @@ public class StoreUnderPressureTests
 
         var answer = await harness.Progress.CurrentAsync();
 
-        Assert.Contains("write the store", answer, StringComparison.Ordinal);
-        Assert.Contains($"1 row {Messages.UnreadableRows}", answer, StringComparison.Ordinal);
-        Assert.Contains(plan.Id.ToString(), answer, StringComparison.Ordinal);
+        Assert.Contains("write the store", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains($"1 row {Messages.UnreadableRows}", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains(plan.Id.ToString(), answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -196,7 +194,7 @@ public class StoreUnderPressureTests
 
         var answer = await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.InProgress);
 
-        Assert.Contains($"1 row {Messages.UnreadableRows}", answer, StringComparison.Ordinal);
+        Assert.Contains($"1 row {Messages.UnreadableRows}", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -207,7 +205,7 @@ public class StoreUnderPressureTests
 
         var answer = await harness.Revision.ReviseAsync(plan.Id.ToString(), plan.Version, [new StepChange(ChangeKind.Add, Title: "wire the tools")]);
 
-        Assert.Contains($"1 row {Messages.UnreadableRows}", answer, StringComparison.Ordinal);
+        Assert.Contains($"1 row {Messages.UnreadableRows}", answer.Words(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -223,8 +221,7 @@ public class StoreUnderPressureTests
 
         var answer = await harness.Progress.CurrentAsync();
 
-        Assert.NotEqual(Messages.NoCurrentPlan, answer);
-        Assert.Contains("could not be read", answer, StringComparison.Ordinal);
+        answer.IsRefused(Messages.CurrentPlanUnreadable, FailureTypes.Unreadable);
     }
 
     private static async Task<Plan> PlanWithAnUnreadableStepAsync(PlanHarness harness)

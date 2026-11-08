@@ -48,7 +48,7 @@ public class OutputBudgetTests
         var answer = await harness.Progress.CurrentAsync();
         var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
-        Assert.DoesNotContain(OutputBudget.TruncationMarker, answer, StringComparison.Ordinal);
-        Assert.All(reread!.Steps, step => Assert.Contains(step.Id.ToString(), answer, StringComparison.Ordinal));
+        Assert.DoesNotContain(OutputBudget.TruncationMarker, answer.Words(), StringComparison.Ordinal);
+        Assert.All(reread!.Steps, step => Assert.Contains(step.Id.ToString(), answer.Words(), StringComparison.Ordinal));
     }
 }

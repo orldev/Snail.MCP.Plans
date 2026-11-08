@@ -41,8 +41,8 @@ public class ToolDescriptionsTests
     [Fact]
     public void Server_Exposes_TheFiveToolsOfTheSpecification() =>
         Assert.Equal(
-            ["CreatePlan", "GetCurrentPlan", "ListActivePlans", "RevisePlan", "UpdateStep"],
-            Tools.Select(tool => tool.Name).OrderBy(name => name, StringComparer.Ordinal));
+            ["create_plan", "get_current_plan", "list_active_plans", "revise_plan", "update_step"],
+            Tools.Select(WireName).OrderBy(name => name, StringComparer.Ordinal));
 
     [Fact]
     public void UpdateStep_Names_EveryStepStatus()
@@ -79,7 +79,7 @@ public class ToolDescriptionsTests
     [Fact]
     public void ServerInstructions_Name_EveryTool()
     {
-        foreach (var tool in Tools.Select(tool => SnakeCase(tool.Name)))
+        foreach (var tool in Tools.Select(WireName))
             Assert.Contains(tool, ServerGuidance.Instructions, StringComparison.Ordinal);
     }
 
@@ -89,7 +89,6 @@ public class ToolDescriptionsTests
         parameter.ParameterType != typeof(CancellationToken)
         && parameter.ParameterType.Namespace?.StartsWith("Snail.MCP.Plans.Application", StringComparison.Ordinal) is not true;
 
-    private static string SnakeCase(string name) =>
-        string.Concat(name.Select((letter, position) =>
-            char.IsUpper(letter) && position > 0 ? $"_{char.ToLowerInvariant(letter)}" : $"{char.ToLowerInvariant(letter)}"));
+    private static string WireName(MethodInfo tool) =>
+        tool.GetCustomAttribute<McpServerToolAttribute>()?.Name ?? tool.Name;
 }

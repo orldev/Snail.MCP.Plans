@@ -20,7 +20,7 @@ public class PlanRevisionTests
 
         var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
-        Assert.Equal(Messages.VersionConflict, late);
+        late.IsRefused(Messages.VersionConflict, FailureTypes.VersionConflict);
         Assert.Equal(["write the store", "wire the tools"], reread!.Steps.Select(step => step.Title));
     }
 
@@ -98,7 +98,7 @@ public class PlanRevisionTests
             plan.Id.ToString(), plan.Version,
             [new StepChange(ChangeKind.Skip, StepId: plan.Steps[0].Id.ToString())]);
 
-        Assert.Equal(Messages.SkipReasonRequired, answer);
+        answer.IsRefused(Messages.SkipReasonRequired, FailureTypes.Arguments);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class PlanRevisionTests
             plan.Id.ToString(), current!.Version,
             [new StepChange(ChangeKind.Edit, Title: "write the store differently", StepId: step)]);
 
-        Assert.Contains("record of what happened", answer, StringComparison.Ordinal);
+        Assert.Contains("record of what happened", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class PlanRevisionTests
             .RevisionOf("agent-two", "project-one")
             .ReviseAsync(plan.Id.ToString(), plan.Version, [Add("wire the tools")]);
 
-        Assert.Contains("agent-one", answer, StringComparison.Ordinal);
+        Assert.Contains("agent-one", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -178,9 +178,8 @@ public class PlanRevisionTests
     {
         using var harness = new PlanHarness();
 
-        Assert.Equal(
-            Messages.PlanNotFound,
-            await harness.Revision.ReviseAsync(Guid.CreateVersion7().ToString(), 1, [Add("write the store")]));
+        (await harness.Revision.ReviseAsync(Guid.CreateVersion7().ToString(), 1, [Add("write the store")]))
+            .IsRefused(Messages.PlanNotFound, FailureTypes.PlanNotFound);
     }
 
     [Fact]
@@ -192,7 +191,7 @@ public class PlanRevisionTests
         var answer = await harness.Revision.ReviseAsync(plan.Id.ToString(), plan.Version, [], outcome: "finished");
 
         foreach (var status in Enum.GetNames<PlanStatus>())
-            Assert.Contains(status, answer, StringComparison.Ordinal);
+            Assert.Contains(status, answer.Words(), StringComparison.Ordinal);
     }
 
     /// Found in use: two reorders in one call answered with a new version while the order stayed as it
@@ -270,8 +269,8 @@ public class PlanRevisionTests
         var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
         var added = reread!.Steps.Where(step => step.Title is "beta" or "gamma").ToList();
 
-        Assert.Contains("added 2:", answer, StringComparison.Ordinal);
-        Assert.All(added, step => Assert.Contains(step.Id.ToString(), answer, StringComparison.Ordinal));
+        Assert.Contains("added 2:", answer.Words(), StringComparison.Ordinal);
+        Assert.All(added, step => Assert.Contains(step.Id.ToString(), answer.Words(), StringComparison.Ordinal));
     }
 
     private static StepChange Add(string title) => new(ChangeKind.Add, Title: title);

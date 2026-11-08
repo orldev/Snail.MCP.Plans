@@ -17,10 +17,10 @@ public class ActivePlansTests
 
         var answer = await harness.Active.RenderAsync();
 
-        Assert.Contains("agent-one", answer, StringComparison.Ordinal);
-        Assert.Contains("agent-two", answer, StringComparison.Ordinal);
-        Assert.Contains("ship the server", answer, StringComparison.Ordinal);
-        Assert.Contains("review the docs", answer, StringComparison.Ordinal);
+        Assert.Contains("agent-one", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("agent-two", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("ship the server", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("review the docs", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -33,13 +33,13 @@ public class ActivePlansTests
 
         var answer = await harness.Active.RenderAsync("project-two");
 
-        Assert.Contains("review the docs", answer, StringComparison.Ordinal);
-        Assert.DoesNotContain("ship the server", answer, StringComparison.Ordinal);
+        Assert.Contains("review the docs", answer.Words(), StringComparison.Ordinal);
+        Assert.DoesNotContain("ship the server", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task Active_WithNothingRunning_SaysSo() =>
-        Assert.Equal(Messages.NoActivePlans, await new PlanHarness().Active.RenderAsync());
+        Assert.Equal(Messages.NoActivePlans, (await new PlanHarness().Active.RenderAsync()).Words());
 
     /// The owner's actual question — how far along is it — answered by counts rather than a percentage,
     /// because a percentage over a revisable step list improves when steps are dropped.
@@ -55,10 +55,10 @@ public class ActivePlansTests
 
         var answer = await harness.Active.RenderAsync();
 
-        Assert.Contains($"1 {nameof(StepStatus.Done)}", answer, StringComparison.Ordinal);
-        Assert.Contains($"1 {nameof(StepStatus.InProgress)}", answer, StringComparison.Ordinal);
-        Assert.Contains($"1 {nameof(StepStatus.Pending)}", answer, StringComparison.Ordinal);
-        Assert.DoesNotContain("%", answer, StringComparison.Ordinal);
+        Assert.Contains($"1 {nameof(StepStatus.Done)}", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains($"1 {nameof(StepStatus.InProgress)}", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains($"1 {nameof(StepStatus.Pending)}", answer.Words(), StringComparison.Ordinal);
+        Assert.DoesNotContain("%", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class ActivePlansTests
 
         var answer = await harness.Active.RenderAsync();
 
-        Assert.Contains("current step: wire the tools", answer, StringComparison.Ordinal);
+        Assert.Contains("current step: wire the tools", answer.Words(), StringComparison.Ordinal);
     }
 
     /// The age of the last write is what exposes an agent that stopped, which is the one thing a
@@ -84,7 +84,7 @@ public class ActivePlansTests
 
         harness.Clock.Advance(TimeSpan.FromHours(3));
 
-        Assert.Contains("updated: 3 hours ago", await harness.Active.RenderAsync(), StringComparison.Ordinal);
+        Assert.Contains("updated: 3 hours ago", (await harness.Active.RenderAsync()).Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class ActivePlansTests
         await harness.Progress.AdvanceAsync(step, StepStatus.InProgress);
         await harness.Progress.AdvanceAsync(step, StepStatus.Done, "stored");
 
-        Assert.Equal(Messages.NoActivePlans, await harness.Active.RenderAsync());
+        Assert.Equal(Messages.NoActivePlans, (await harness.Active.RenderAsync()).Words());
     }
 
     /// The default identity is the folder, which is also the project name, so the heading would
@@ -109,7 +109,7 @@ public class ActivePlansTests
 
         await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
 
-        Assert.Contains("## project-one\n", await harness.Active.RenderAsync(), StringComparison.Ordinal);
+        Assert.Contains("## project-one\n", (await harness.Active.RenderAsync()).Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class ActivePlansTests
 
         await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
 
-        Assert.Contains("## project-one · agent-one", await harness.Active.RenderAsync(), StringComparison.Ordinal);
+        Assert.Contains("## project-one · agent-one", (await harness.Active.RenderAsync()).Words(), StringComparison.Ordinal);
     }
 
     private static async Task<Plan> Drafted(PlanHarness harness, params string[] steps)

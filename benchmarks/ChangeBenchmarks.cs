@@ -1,6 +1,8 @@
 using BenchmarkDotNet.Attributes;
 using Snail.MCP.Plans.Application;
 using Snail.MCP.Plans.Core;
+using Snail.MCP.Plans.Core.Formatting;
+using Snail.Sdk.Mcp.Hosting.Answers;
 
 namespace Snail.MCP.Plans.Benchmarks;
 
@@ -39,9 +41,9 @@ public class ChangeBenchmarks
 
     /// <summary>The step in progress of a sixty-step plan reported done, the next one handed over.</summary>
     [Benchmark]
-    public Task<string> UpdateStep() => _progress.AdvanceAsync(_inProgress, StepStatus.Done, "finished");
+    public Task<Answer<PrintedStep>> UpdateStep() => _progress.AdvanceAsync(_inProgress, StepStatus.Done, "finished");
 
     /// <summary>An add, an edit, a skip and a reorder applied to a sixty-step plan, the plan printed back.</summary>
     [Benchmark]
-    public Task<string> RevisePlan() => _revision.ReviseAsync(_plan.Id.ToString(), _plan.Version, _changes);
+    public Task<Answer<PrintedPlan>> RevisePlan() => _revision.ReviseAsync(_plan.Id.ToString(), _plan.Version, _changes);
 }

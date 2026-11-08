@@ -68,11 +68,33 @@ the age of the last write rather than a percentage.
 
 A plan needs no closing call: it completes itself once no step is open, and reopens if you add one.
 
+## What the tools answer
+
+Every answer is the envelope every Snail server answers in: one block of JSON with an `ok` flag. On success `data.text`
+is the plan as the agent reads it, and beside it go the ids and the version the next call takes, so nothing has to be
+read out of the text:
+
+```json
+{"ok":true,"data":{"planId":"0199…","version":3,"planStatus":"Active","stepId":"0199…","status":"Done","nextStepId":"0199…","text":"Done: write the store\nprogress: 2 steps — 1 Done, …\n\nnext step — 0199…: wire the tools\n"}}
+```
+
+`create_plan`, `get_current_plan` and `revise_plan` answer `planId`, `version`, `status` and `text` (`create_plan` also
+`drafted`, false when it handed back the plan already active); `update_step` the above; `list_active_plans` `count` and
+`text`, with `unreadableRows` when the file holds rows it could not read. A refusal is flagged as an error and says
+why, what to do and its kind — the word a hook or a script branches on, never the error's wording:
+
+```json
+{"ok":false,"error":"The plan changed since you read it, so nothing was written.","hint":"read it again with get_current_plan and redo this change on the current version","type":"versionConflict"}
+```
+
+The kinds: `noPlan`, `planNotFound`, `stepNotFound`, `versionConflict`, `transition`, `stepInProgress`, `settled`,
+`notYours`, `unreadable`, `outraced`, and `arguments` for a value the tool cannot work with.
+
 ## On long plans
 
 Finished steps print their notes shortened, so a plan of sixty steps still shows every step id. A revision
-names the ids it just created before printing the plan, so you never have to hunt for them. Answers are
-capped and say so when cut.
+names the ids it just created before printing the plan, so you never have to hunt for them. The printed text is
+capped at 20 000 characters and says so when cut.
 
 ## Configuration
 
@@ -96,7 +118,7 @@ The database is opened in write-ahead logging mode, so a second session reads it
 ## Building from source
 
 ```bash
-dotnet test    # 129 tests, including a contract test over the real stdio process
+dotnet test    # 172 tests, including contract tests over the real stdio process
 dotnet run --project src
 ```
 

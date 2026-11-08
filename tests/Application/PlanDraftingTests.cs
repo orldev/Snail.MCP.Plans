@@ -37,7 +37,9 @@ public class PlanDraftingTests
         var active = await harness.Plans.ActiveAsync("");
 
         Assert.Single(active);
-        Assert.Contains(Messages.PlanAlreadyActive, second);
+        Assert.True(second.TryGet(out var printed), second.Words());
+        Assert.False(printed.Drafted);
+        Assert.Contains(Messages.PlanAlreadyActive, printed.Text, StringComparison.Ordinal);
     }
 
     /// Knowing a plan must be closed first is useless without knowing how: settling is a parameter of
@@ -50,9 +52,9 @@ public class PlanDraftingTests
         await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
         var answer = await harness.Drafting.DraftAsync("ship something else", ["write something"]);
 
-        Assert.Contains("revise_plan", answer, StringComparison.Ordinal);
-        Assert.Contains(nameof(PlanStatus.Completed), answer, StringComparison.Ordinal);
-        Assert.Contains("version", answer, StringComparison.Ordinal);
+        Assert.Contains("revise_plan", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains(nameof(PlanStatus.Completed), answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("version", answer.Words(), StringComparison.Ordinal);
     }
 
     /// The loser of a race whose winner was settled before it could be read: there is no plan to answer with,
@@ -64,7 +66,7 @@ public class PlanDraftingTests
 
         var answer = await drafting.DraftAsync("ship the server", ["write the store"]);
 
-        Assert.Equal(Messages.DraftOutraced, answer);
+        answer.IsRefused(Messages.DraftOutraced, FailureTypes.Outraced);
     }
 
     [Fact]
@@ -72,7 +74,7 @@ public class PlanDraftingTests
     {
         using var harness = new PlanHarness();
 
-        Assert.Equal(Messages.ObjectiveRequired, await harness.Drafting.DraftAsync("  ", ["write the store"]));
+        (await harness.Drafting.DraftAsync("  ", ["write the store"])).IsRefused(Messages.ObjectiveRequired, FailureTypes.Arguments);
     }
 
     [Fact]
@@ -80,7 +82,7 @@ public class PlanDraftingTests
     {
         using var harness = new PlanHarness();
 
-        Assert.Equal(Messages.StepsRequired, await harness.Drafting.DraftAsync("ship the server", ["", "   "]));
+        (await harness.Drafting.DraftAsync("ship the server", ["", "   "])).IsRefused(Messages.StepsRequired, FailureTypes.Arguments);
     }
 
     /// Found in use: a session in another folder called create_plan to look at an existing plan and
@@ -96,9 +98,9 @@ public class PlanDraftingTests
 
         var theirs = (await harness.Plans.ActiveAsync("project-one")).Single(plan => plan.AgentId == "agent-two");
 
-        Assert.Contains(Messages.AnotherAgentIsHere, answer, StringComparison.Ordinal);
-        Assert.Contains(theirs.Id.ToString(), answer, StringComparison.Ordinal);
-        Assert.Contains("review the docs", answer, StringComparison.Ordinal);
+        Assert.Contains(Messages.AnotherAgentIsHere, answer.Words(), StringComparison.Ordinal);
+        Assert.Contains(theirs.Id.ToString(), answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("review the docs", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -108,7 +110,7 @@ public class PlanDraftingTests
 
         var answer = await harness.Drafting.DraftAsync("ship the server", ["write the store"]);
 
-        Assert.DoesNotContain(Messages.AnotherAgentIsHere, answer, StringComparison.Ordinal);
+        Assert.DoesNotContain(Messages.AnotherAgentIsHere, answer.Words(), StringComparison.Ordinal);
     }
 
     /// Two agents in one project are two plans: the identity comes from the process, so neither sees

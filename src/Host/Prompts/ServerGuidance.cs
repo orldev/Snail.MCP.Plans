@@ -29,5 +29,10 @@ public static class ServerGuidance
 
         list_active_plans answers about every agent rather than about you — it is what another session
         calls to see what is running and how far it has gone.
+
+        Every answer is JSON with an ok flag. On success data.text is the plan as you read it, with
+        data.planId, data.version and the step ids the next call takes beside it. When ok is false, read
+        error and hint and change the call instead of repeating it; type names the refusal (noPlan,
+        versionConflict, stepNotFound, transition, …).
         """;
 }

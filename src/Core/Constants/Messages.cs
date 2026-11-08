@@ -1,12 +1,18 @@
 namespace Snail.MCP.Plans.Core.Constants;
 
-/// <summary>Text of the answers a tool sends back.</summary>
-/// <remarks>Read by the agent as prose, so these are free to reword; the contracts it obeys live in <c>ToolDescriptions</c>.</remarks>
+/// <summary>Text of the answers a tool sends back: the prose of a success, and the error and hint of a refusal.</summary>
+/// <remarks>
+/// Read by the agent as prose, so these are free to reword; the contracts it obeys live in <c>ToolDescriptions</c>, and
+/// the kind of a refusal a program branches on in <see cref="FailureTypes"/>. A hint is lowercase and without a closing
+/// stop, as the fleet's hints are.
+/// </remarks>
 public static class Messages
 {
     /// <summary>No plan is being worked on.</summary>
-    public const string NoCurrentPlan =
-        "No active plan for this agent in this project. Draft one with create_plan before starting work.";
+    public const string NoCurrentPlan = "No active plan for this agent in this project.";
+
+    /// <summary>What to do without a plan.</summary>
+    public const string DraftOne = "draft one with create_plan before starting work";
 
     /// <summary>The agent already has a plan where it asked to draft one.</summary>
     /// <remarks>Names the call that settles a plan: knowing a plan must be closed first is useless without knowing how, and the way to do it is a parameter of a tool named after revising.</remarks>
@@ -24,7 +30,10 @@ public static class Messages
     /// <summary>Another call of this agent stored its plan first and that plan is already settled.</summary>
     /// <remarks>Reached only when the winner of a race is closed between the refusal and the read that follows it.</remarks>
     public const string DraftOutraced =
-        "Another session of this agent drafted a plan at the same moment and has already settled it. Draft again if the work still needs a plan.";
+        "Another session of this agent drafted a plan at the same moment and has already settled it.";
+
+    /// <summary>What to do after a lost race.</summary>
+    public const string DraftAgain = "draft again if the work still needs a plan";
 
     /// <summary>Rows of the plans file a read passed over, said after their count.</summary>
     /// <remarks>Said because a read that passes a row over keeps the other plans alive but would otherwise answer as if the row were not there.</remarks>
@@ -34,12 +43,18 @@ public static class Messages
     /// <summary>The agent's active plan exists but cannot be read.</summary>
     /// <remarks>Said instead of "no active plan", which invited a create_plan the unique index would refuse: the plan is there, it only cannot be read.</remarks>
     public const string CurrentPlanUnreadable =
-        "This agent has an active plan in this project, but it could not be read — its id is not a Guid, most likely edited by hand. Fix or delete that row in the plans file; until then no new plan can be drafted here.";
+        "This agent has an active plan in this project, but it could not be read — its id is not a Guid, most likely edited by hand.";
+
+    /// <summary>What to do about an active plan that cannot be read.</summary>
+    public const string FixTheRow = "fix or delete that row in the plans file; until then no new plan can be drafted here";
 
     /// <summary>A draft refused by an active plan of this agent that no read can see.</summary>
     /// <remarks>The unique index sees a row every read passes over; without this the refusal read as a lost race and "draft again" led into the same refusal.</remarks>
     public const string DraftBlockedByUnreadable =
-        "This project holds an active plan that could not be read — its id is not a Guid, most likely edited by hand — and while it is there no new plan can be drafted here. Fix or delete that row in the plans file, then draft again.";
+        "This project holds an active plan that could not be read — its id is not a Guid, most likely edited by hand — and while it is there no new plan can be drafted here.";
+
+    /// <summary>What to do about a draft blocked by a row that cannot be read.</summary>
+    public const string FixTheRowThenDraft = "fix or delete that row in the plans file, then draft again";
 
     /// <summary>Nothing is being worked on anywhere.</summary>
     public const string NoActivePlans = "No active plans. Nothing is being worked on right now.";
@@ -52,21 +67,35 @@ public static class Messages
     /// <summary>A plan was asked for by an identity nothing matches.</summary>
     public const string PlanNotFound = "No plan with this id.";
 
+    /// <summary>Where a plan's id is read.</summary>
+    public const string PlanIdFrom = "take the planId from get_current_plan or list_active_plans";
+
     /// <summary>A step was asked for by an identity the plan does not hold.</summary>
     public const string StepNotFound = "This plan has no step with that id.";
 
+    /// <summary>Where a step's id is read.</summary>
+    public const string StepIdFrom = "take the step id from the plan get_current_plan prints";
+
     /// <summary>A revision or an update was built on a version that has since moved.</summary>
-    public const string VersionConflict =
-        "The plan changed since you read it, so nothing was written. Read it again with get_current_plan and redo this change on the current version.";
+    public const string VersionConflict = "The plan changed since you read it, so nothing was written.";
+
+    /// <summary>What to do after a write built on a stale version.</summary>
+    public const string ReadAgain = "read it again with get_current_plan and redo this change on the current version";
 
     /// <summary>A plan cannot be drafted without steps.</summary>
     public const string StepsRequired = "A plan needs at least one step.";
+
+    /// <summary>What a draft without steps is missing.</summary>
+    public const string PassTheSteps = "pass the steps in the order they are to be walked";
 
     /// <summary>A plan cannot be drafted without a goal.</summary>
     public const string ObjectiveRequired = "A plan needs an objective: what the work is meant to achieve.";
 
     /// <summary>Work was reported on a plan that is no longer active.</summary>
     public const string PlanSettled = "This plan is no longer active, so its steps cannot change.";
+
+    /// <summary>What to do with work left after a plan was settled.</summary>
+    public const string DraftANewOne = "draft a new plan with create_plan for the work that is left";
 
     /// <summary>No step is left to pick up, but the one in hand is still open.</summary>
     /// <remarks>Distinct from <see cref="PlanFinished"/>: announcing the plan settled while a step is in progress told the agent the work was over one step early.</remarks>
@@ -87,6 +116,14 @@ public static class Messages
         "This step failed. Either attempt it again (update_step to InProgress, which counts another attempt), skip it with a reason, or insert the step that unblocks it with revise_plan.";
 
     /// <summary>A skip was asked for without saying why.</summary>
-    public const string SkipReasonRequired =
-        "A skipped step keeps its reason on the record — say why it is being skipped.";
+    public const string SkipReasonRequired = "A skipped step keeps its reason on the record.";
+
+    /// <summary>What a skip without a reason is missing.</summary>
+    public const string SayWhy = "say why it is being skipped";
+
+    /// <summary>A plan of another agent was asked to be revised.</summary>
+    public const string NotYours = "a plan is revised by the agent walking it; draft your own with create_plan";
+
+    /// <summary>A step is in progress where another was taken up.</summary>
+    public const string ReportThatOneFirst = "report that one first";
 }

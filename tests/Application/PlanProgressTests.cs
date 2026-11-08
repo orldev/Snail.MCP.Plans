@@ -18,8 +18,8 @@ public class PlanProgressTests
 
         var answer = await harness.Progress.CurrentAsync();
 
-        Assert.Contains("ship the server", answer, StringComparison.Ordinal);
-        Assert.Contains("write the store", answer, StringComparison.Ordinal);
+        Assert.Contains("ship the server", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("write the store", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class PlanProgressTests
     {
         using var harness = new PlanHarness();
 
-        Assert.Equal(Messages.NoCurrentPlan, await harness.Progress.CurrentAsync());
+        (await harness.Progress.CurrentAsync()).IsRefused(Messages.NoCurrentPlan, FailureTypes.NoPlan);
     }
 
     /// The largest saving in the whole server: reporting a step and learning the next one is one call.
@@ -40,8 +40,8 @@ public class PlanProgressTests
         await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.InProgress);
         var answer = await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.Done, "stored");
 
-        Assert.Contains("wire the tools", answer, StringComparison.Ordinal);
-        Assert.Contains(plan.Steps[1].Id.ToString(), answer, StringComparison.Ordinal);
+        Assert.Contains("wire the tools", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains(plan.Steps[1].Id.ToString(), answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class PlanProgressTests
         var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(PlanStatus.Active, reread!.Status);
-        Assert.Contains(Messages.AfterFailure, answer, StringComparison.Ordinal);
+        Assert.Contains(Messages.AfterFailure, answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -87,8 +87,8 @@ public class PlanProgressTests
         await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.InProgress);
         var answer = await harness.Progress.AdvanceAsync(plan.Steps[1].Id.ToString(), StepStatus.InProgress);
 
-        Assert.Contains("one step at a time", answer, StringComparison.Ordinal);
-        Assert.Contains("write the store", answer, StringComparison.Ordinal);
+        Assert.Contains("one step at a time", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("write the store", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public class PlanProgressTests
 
         var answer = await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.Done);
 
-        Assert.Contains(nameof(StepStatus.InProgress), answer, StringComparison.Ordinal);
-        Assert.Contains(nameof(StepStatus.Skipped), answer, StringComparison.Ordinal);
+        Assert.Contains(nameof(StepStatus.InProgress), answer.Words(), StringComparison.Ordinal);
+        Assert.Contains(nameof(StepStatus.Skipped), answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -109,9 +109,8 @@ public class PlanProgressTests
         using var harness = new PlanHarness();
         var plan = await Drafted(harness, "write the store");
 
-        Assert.Equal(
-            Messages.SkipReasonRequired,
-            await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.Skipped));
+        (await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.Skipped))
+            .IsRefused(Messages.SkipReasonRequired, FailureTypes.Arguments);
     }
 
     [Fact]
@@ -127,7 +126,7 @@ public class PlanProgressTests
         var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
 
         Assert.Equal(PlanStatus.Completed, reread!.Status);
-        Assert.Contains(Messages.PlanFinished, answer, StringComparison.Ordinal);
+        Assert.Contains(Messages.PlanFinished, answer.Words(), StringComparison.Ordinal);
     }
 
     /// Identity comes from the process, so naming another agent's step is not a way into its plan.
@@ -141,7 +140,7 @@ public class PlanProgressTests
             .ProgressOf("agent-two", "project-one")
             .AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.InProgress);
 
-        Assert.Equal(Messages.NoCurrentPlan, answer);
+        answer.IsRefused(Messages.NoCurrentPlan, FailureTypes.NoPlan);
     }
 
     /// Found live: with the last step taken up there is no Pending step to hand over, and the answer
@@ -154,8 +153,8 @@ public class PlanProgressTests
 
         var answer = await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.InProgress);
 
-        Assert.Contains(Messages.LastOpenStep, answer, StringComparison.Ordinal);
-        Assert.DoesNotContain(Messages.PlanFinished, answer, StringComparison.Ordinal);
+        Assert.Contains(Messages.LastOpenStep, answer.Words(), StringComparison.Ordinal);
+        Assert.DoesNotContain(Messages.PlanFinished, answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -168,8 +167,8 @@ public class PlanProgressTests
         await harness.Progress.AdvanceAsync(step, StepStatus.InProgress);
         var answer = await harness.Progress.AdvanceAsync(step, StepStatus.Failed, "the file was locked");
 
-        Assert.DoesNotContain(Messages.PlanFinished, answer, StringComparison.Ordinal);
-        Assert.Contains(Messages.OnlyFailureLeft, answer, StringComparison.Ordinal);
+        Assert.DoesNotContain(Messages.PlanFinished, answer.Words(), StringComparison.Ordinal);
+        Assert.Contains(Messages.OnlyFailureLeft, answer.Words(), StringComparison.Ordinal);
     }
 
     /// Found in use: a step taken up by mistake could not be put back, and the only way on was to report
@@ -214,9 +213,8 @@ public class PlanProgressTests
         using var harness = new PlanHarness();
         await Drafted(harness, "write the store");
 
-        Assert.Equal(
-            Messages.StepNotFound,
-            await harness.Progress.AdvanceAsync(Guid.CreateVersion7().ToString(), StepStatus.InProgress));
+        (await harness.Progress.AdvanceAsync(Guid.CreateVersion7().ToString(), StepStatus.InProgress))
+            .IsRefused(Messages.StepNotFound, FailureTypes.StepNotFound);
     }
 
     /// Found in use: a session in another folder could see only the summary in the active list, and
@@ -229,9 +227,9 @@ public class PlanProgressTests
 
         var answer = await harness.ProgressOf("agent-two", "project-two").CurrentAsync(planId: plan.Id.ToString());
 
-        Assert.Contains("write the store", answer, StringComparison.Ordinal);
-        Assert.Contains(Messages.SomeoneElsesPlan, answer, StringComparison.Ordinal);
-        Assert.Contains("agent-one", answer, StringComparison.Ordinal);
+        Assert.Contains("write the store", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains(Messages.SomeoneElsesPlan, answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("agent-one", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -242,7 +240,7 @@ public class PlanProgressTests
 
         var answer = await harness.Progress.CurrentAsync(planId: plan.Id.ToString());
 
-        Assert.DoesNotContain(Messages.SomeoneElsesPlan, answer, StringComparison.Ordinal);
+        Assert.DoesNotContain(Messages.SomeoneElsesPlan, answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -250,7 +248,7 @@ public class PlanProgressTests
     {
         using var harness = new PlanHarness();
 
-        Assert.Equal(Messages.PlanNotFound, await harness.Progress.CurrentAsync(planId: Guid.CreateVersion7().ToString()));
+        (await harness.Progress.CurrentAsync(planId: Guid.CreateVersion7().ToString())).IsRefused(Messages.PlanNotFound, FailureTypes.PlanNotFound);
     }
 
     private static async Task<Plan> Drafted(PlanHarness harness, params string[] steps)

@@ -2,6 +2,7 @@ using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
 using Snail.MCP.Plans.Core.Formatting;
 using Snail.MCP.Plans.Core.Interfaces;
+using Snail.Sdk.Mcp.Hosting.Answers;
 
 namespace Snail.MCP.Plans.Application;
 
@@ -19,7 +20,7 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
     /// shows only a summary, and without this a session in another folder had no way to see the steps —
     /// one tried <c>create_plan</c> to look and left a duplicate plan behind.
     /// </remarks>
-    public async Task<string> CurrentAsync(
+    public async Task<Answer<PrintedPlan>> CurrentAsync(
         string projectName = "",
         string planId = "",
         CancellationToken cancellationToken = default)
@@ -29,23 +30,38 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
         if (planId.Length > 0)
         {
             if (!Guid.TryParse(planId, out var named))
-                return Messages.PlanNotFound;
+                return PlanNotFound;
 
             var found = await plans.FindAsync(named, cancellationToken);
 
-            return found.Count is 0
-                ? Messages.PlanNotFound
-                : PlanView.Render(found[0], now, PlanView.Prologue(Borrowed(found[0]), PlanView.Unread(found)));
+            if (found.Count is 0)
+                return PlanNotFound;
+
+            var borrowed = PlanView.Render(found[0], now, PlanView.Prologue(Borrowed(found[0]), PlanView.Unread(found)));
+
+            return Answer.Ok(new PrintedPlan(found[0], borrowed));
         }
 
         var project = Projects.Resolve(projectName, identity);
         var current = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
 
-        if (current.Count > 0)
-            return PlanView.Render(current[0], now, PlanView.Unread(current));
+        if (current.Count is 0)
+            return NoPlan(current);
 
-        return current.UnreadablePlans > 0 ? Messages.CurrentPlanUnreadable : Messages.NoCurrentPlan;
+        var text = PlanView.Render(current[0], now, PlanView.Unread(current));
+
+        return Answer.Ok(new PrintedPlan(current[0], text));
     }
+
+    private static AnswerFailure PlanNotFound => new(Messages.PlanNotFound, Messages.PlanIdFrom, FailureTypes.PlanNotFound);
+
+    private static AnswerFailure StepNotFound => new(Messages.StepNotFound, Messages.StepIdFrom, FailureTypes.StepNotFound);
+
+    /// <remarks>"No plan" and "a plan that cannot be read" call for different actions, and only the count of unread rows tells them apart.</remarks>
+    private static AnswerFailure NoPlan(PlanListing read) =>
+        read.UnreadablePlans > 0
+            ? new(Messages.CurrentPlanUnreadable, Messages.FixTheRow, FailureTypes.Unreadable)
+            : new(Messages.NoCurrentPlan, Messages.DraftOne, FailureTypes.NoPlan);
 
     private string Borrowed(Plan plan) =>
         plan.AgentId.Equals(identity.AgentId, StringComparison.OrdinalIgnoreCase)
@@ -53,7 +69,7 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
             : $"{Messages.SomeoneElsesPlan} It belongs to agent '{plan.AgentId}'.";
 
     /// <summary>Moves a step to a new status and answers with the progress and the step to do next.</summary>
-    public async Task<string> AdvanceAsync(
+    public async Task<Answer<PrintedStep>> AdvanceAsync(
         string stepId,
         StepStatus status,
         string note = "",
@@ -61,10 +77,10 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
         CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(stepId, out var wanted))
-            return Messages.StepNotFound;
+            return StepNotFound;
 
         if (status is StepStatus.Skipped && string.IsNullOrWhiteSpace(note))
-            return Messages.SkipReasonRequired;
+            return Answer.Failed(Messages.SkipReasonRequired, $"{Messages.SayWhy} in 'note'", FailureTypes.Arguments);
 
         var project = Projects.Resolve(projectName, identity);
         var now = clock.GetUtcNow();
@@ -72,12 +88,12 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
         var read = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
 
         if (read.Count is 0)
-            return read.UnreadablePlans > 0 ? Messages.CurrentPlanUnreadable : Messages.NoCurrentPlan;
+            return NoPlan(read);
 
         var plan = read[0];
 
         if (plan.Steps.FirstOrDefault(step => step.Id == wanted) is not { } current)
-            return Messages.StepNotFound;
+            return StepNotFound;
 
         if (!Transitions.CanMove(current.Status, status))
             return Refused(current, status);
@@ -97,7 +113,7 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
             now);
 
         if (!await plans.TrySaveAsync(updated, plan.Version, cancellationToken))
-            return Messages.VersionConflict;
+            return Answer.Failed(Messages.VersionConflict, Messages.ReadAgain, FailureTypes.VersionConflict);
 
         var next = updated.Steps
             .OrderBy(step => step.OrderIndex)
@@ -105,7 +121,9 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
 
         var hint = PlanView.Prologue(PlanView.Unread(read), status is StepStatus.Failed ? Messages.AfterFailure : "");
 
-        return PlanView.Advanced(updated, reported, next, hint);
+        var text = PlanView.Advanced(updated, reported, next, hint);
+
+        return Answer.Ok(new PrintedStep(updated, reported, next, text));
     }
 
     /// <remarks>Going back to <see cref="StepStatus.Pending"/> keeps the attempt that was spent: the step was taken up, and hiding that would understate what the plan cost.</remarks>
@@ -123,15 +141,21 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
             ? plan.Steps.FirstOrDefault(step => step.Status is StepStatus.InProgress && step.Id != moving.Id)
             : null;
 
-    private static string AlreadyBusy(Step busy) =>
-        $"A plan runs one step at a time, and '{busy.Title}' ({busy.Id}) is already {StepStatus.InProgress}. Report that one first.";
+    private static AnswerFailure AlreadyBusy(Step busy) => new(
+        $"A plan runs one step at a time, and '{busy.Title}' ({busy.Id}) is already {StepStatus.InProgress}.",
+        Messages.ReportThatOneFirst,
+        FailureTypes.StepInProgress);
 
-    private static string Refused(Step step, StepStatus wanted)
+    private static AnswerFailure Refused(Step step, StepStatus wanted)
     {
         var allowed = Transitions.AllowedFrom(step.Status);
 
-        return allowed.Count is 0
-            ? $"Step '{step.Title}' is {step.Status}, which is final: it cannot move to {wanted}."
-            : $"Step '{step.Title}' is {step.Status}, so it cannot move to {wanted}. Allowed from here: {string.Join(", ", allowed)}.";
+        if (allowed.Count is 0)
+            return new($"Step '{step.Title}' is {step.Status}, which is final: it cannot move to {wanted}.", Type: FailureTypes.Settled);
+
+        return new(
+            $"Step '{step.Title}' is {step.Status}, so it cannot move to {wanted}.",
+            $"allowed from here: {string.Join(", ", allowed)}",
+            FailureTypes.Transition);
     }
 }

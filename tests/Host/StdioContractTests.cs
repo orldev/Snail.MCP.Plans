@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
-using System.Text.RegularExpressions;
+using System.Text.Json.Nodes;
 using ModelContextProtocol.Client;
 using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Infrastructure.Configuration;
@@ -11,7 +11,7 @@ namespace Snail.MCP.Plans.Tests.Host;
 /// The contract of the real server process, started the way a client starts it — the build beside the tests, or the
 /// one SNAIL_PLANS_SERVER names: the composition root boots, the instruction reaches the client at the handshake,
 /// every tool reaches the model, a whole plan can be walked over the wire, and stdout carries JSON-RPC and nothing else.
-public partial class StdioContractTests
+public class StdioContractTests
 {
     private const string Assembly = "Snail.MCP.Plans";
 
@@ -76,7 +76,7 @@ public partial class StdioContractTests
 
         var current = await CallAsync(client, "get_current_plan", []);
 
-        Assert.Contains("ship the plans server", current, StringComparison.Ordinal);
+        Assert.Contains("ship the plans server", TextOf(current), StringComparison.Ordinal);
 
         var stepId = StepIdOf(current, "write the store");
 
@@ -89,21 +89,22 @@ public partial class StdioContractTests
             ["note"] = "stored in sqlite"
         });
 
-        Assert.Contains("wire the tools", reported, StringComparison.Ordinal);
+        Assert.Equal(nameof(StepStatus.Done), (string?)reported["status"]);
+        Assert.Equal(StepIdOf(current, "wire the tools"), (string?)reported["nextStepId"]);
+        Assert.Contains("wire the tools", TextOf(reported), StringComparison.Ordinal);
 
         var active = await CallAsync(client, "list_active_plans", []);
 
-        Assert.Contains("ship the plans server", active, StringComparison.Ordinal);
-        Assert.Contains($"1 {nameof(StepStatus.Done)}", active, StringComparison.Ordinal);
+        Assert.Equal(1, (int?)active["count"]);
+        Assert.Contains("ship the plans server", TextOf(active), StringComparison.Ordinal);
+        Assert.Contains($"1 {nameof(StepStatus.Done)}", TextOf(active), StringComparison.Ordinal);
 
         var plan = await CallAsync(client, "get_current_plan", []);
-        var planId = PlanHeading().Match(plan).Groups[1].Value;
-        var version = int.Parse(PlanVersion().Match(plan).Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
 
         var revised = await CallAsync(client, "revise_plan", new()
         {
-            ["planId"] = planId,
-            ["version"] = version,
+            ["planId"] = (string?)plan["planId"],
+            ["version"] = (int?)plan["version"],
             ["changes"] = new object[]
             {
                 new Dictionary<string, object?> { ["kind"] = "add", ["title"] = "publish it" },
@@ -111,7 +112,49 @@ public partial class StdioContractTests
             }
         });
 
-        Assert.Contains("publish it", revised, StringComparison.Ordinal);
+        Assert.Equal((int?)plan["version"] + 1, (int?)revised["version"]);
+        Assert.Contains("publish it", TextOf(revised), StringComparison.Ordinal);
+    }
+
+    /// A refusal is the failure envelope flagged as an error, its type the word a hook branches on: before the envelope
+    /// "no active plan" came back as a plain success whose text only a reader could tell from a plan.
+    [Fact]
+    public async Task GetCurrentPlan_ForAnAgentWithoutAPlan_IsRefusedWithTypeNoPlan()
+    {
+        await using var client = await StartAsync("planless-agent");
+
+        var answer = await client.CallToolAsync("get_current_plan", new Dictionary<string, object?>());
+
+        Assert.True(answer.IsError, answer.Text());
+        Assert.False(answer.IsOk(), answer.Text());
+        Assert.Equal("noPlan", answer.Type());
+        Assert.Contains("create_plan", answer.Hint(), StringComparison.Ordinal);
+    }
+
+    /// A stale version writes nothing and says so as a refusal of its own type, so a caller retries after a read
+    /// rather than reading the refusal as the revised plan.
+    [Fact]
+    public async Task RevisePlan_OnAStaleVersion_IsRefusedWithTypeVersionConflict()
+    {
+        await using var client = await StartAsync("stale-agent");
+
+        var drafted = await CallAsync(client, "create_plan", new()
+        {
+            ["objective"] = "revise twice",
+            ["steps"] = new[] { "first" }
+        });
+
+        Assert.True((bool?)drafted["drafted"]);
+
+        var answer = await client.CallToolAsync("revise_plan", new Dictionary<string, object?>
+        {
+            ["planId"] = (string?)drafted["planId"],
+            ["version"] = (int?)drafted["version"] + 5,
+            ["changes"] = new object[] { new Dictionary<string, object?> { ["kind"] = "add", ["title"] = "second" } }
+        });
+
+        Assert.True(answer.IsError, answer.Text());
+        Assert.Equal("versionConflict", answer.Type());
     }
 
     /// A status the schema does not name never reaches the tool: the answer says which parameter was wrong and what it
@@ -204,12 +247,6 @@ public partial class StdioContractTests
         }
     }
 
-    [GeneratedRegex("# Plan ([0-9a-f-]{36})")]
-    private static partial Regex PlanHeading();
-
-    [GeneratedRegex(@"version (\d+)")]
-    private static partial Regex PlanVersion();
-
     private static object Handshake => new
     {
         protocolVersion = "2025-06-18",
@@ -225,20 +262,25 @@ public partial class StdioContractTests
             [Prefix + "AGENTID"] = agent
         });
 
-    /// <summary>The text a tool answered, failing the test when the call was flagged an error.</summary>
-    private static async Task<string> CallAsync(McpClient client, string tool, Dictionary<string, object?> arguments)
+    /// <summary>The data of a tool's envelope, failing the test when the call was refused or carried the plan twice.</summary>
+    private static async Task<JsonNode> CallAsync(McpClient client, string tool, Dictionary<string, object?> arguments)
     {
         var answer = await client.CallToolAsync(tool, arguments);
         var text = answer.Text();
 
         Assert.False(answer.IsError is true, $"{tool} answered with an error: {text}");
+        Assert.True(answer.IsOk(), $"{tool} answered outside the envelope: {text}");
+        Assert.Null(answer.StructuredContent);
 
-        return text;
+        return answer.Data() ?? throw new InvalidOperationException($"{tool} answered no data: {text}");
     }
 
-    private static string StepIdOf(string plan, string title)
+    /// <summary>The plan as printed, which the envelope carries as <c>data.text</c> on every tool.</summary>
+    private static string TextOf(JsonNode data) => (string?)data["text"] ?? "";
+
+    private static string StepIdOf(JsonNode plan, string title)
     {
-        var line = plan
+        var line = TextOf(plan)
             .Split('\n')
             .Single(candidate => candidate.Contains(title, StringComparison.Ordinal) && candidate.StartsWith("  [", StringComparison.Ordinal));
 

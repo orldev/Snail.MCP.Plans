@@ -2,6 +2,7 @@ using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
 using Snail.MCP.Plans.Core.Formatting;
 using Snail.MCP.Plans.Core.Interfaces;
+using Snail.Sdk.Mcp.Hosting.Answers;
 
 namespace Snail.MCP.Plans.Application;
 
@@ -13,7 +14,7 @@ namespace Snail.MCP.Plans.Application;
 public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, TimeProvider clock)
 {
     /// <summary>Applies the changes in order and answers with the plan they produced.</summary>
-    public async Task<string> ReviseAsync(
+    public async Task<Answer<PrintedPlan>> ReviseAsync(
         string planId,
         int version,
         IReadOnlyList<StepChange> changes,
@@ -22,7 +23,7 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(planId, out var wanted))
-            return Messages.PlanNotFound;
+            return PlanNotFound;
 
         if (outcome.Length > 0 && !Enum.TryParse<PlanStatus>(outcome, ignoreCase: true, out _))
             return UnknownOutcome(outcome);
@@ -30,7 +31,7 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         var read = await plans.FindAsync(wanted, cancellationToken);
 
         if (read.Count is 0)
-            return Messages.PlanNotFound;
+            return PlanNotFound;
 
         var plan = read[0];
 
@@ -38,10 +39,10 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
             return NotYours(plan);
 
         if (plan.Status is PlanStatus.Failed or PlanStatus.Abandoned)
-            return Messages.PlanSettled;
+            return Answer.Failed(Messages.PlanSettled, Messages.DraftANewOne, FailureTypes.Settled);
 
         if (plan.Version != version)
-            return Messages.VersionConflict;
+            return VersionConflict;
 
         var now = clock.GetUtcNow();
         var rework = new Rework(plan.Steps);
@@ -55,10 +56,18 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         var updated = Reconciled(plan, rework.Steps, summary, outcome, now);
 
         if (!await plans.TrySaveAsync(updated, plan.Version, cancellationToken))
-            return Messages.VersionConflict;
+            return VersionConflict;
 
-        return PlanView.Render(updated, now, PlanView.Prologue(PlanView.Added(rework.AddedSteps), PlanView.Unread(read)));
+        var text = PlanView.Render(updated, now, PlanView.Prologue(PlanView.Added(rework.AddedSteps), PlanView.Unread(read)));
+
+        return Answer.Ok(new PrintedPlan(updated, text));
     }
+
+    private static AnswerFailure PlanNotFound => new(Messages.PlanNotFound, Messages.PlanIdFrom, FailureTypes.PlanNotFound);
+
+    private static AnswerFailure VersionConflict => new(Messages.VersionConflict, Messages.ReadAgain, FailureTypes.VersionConflict);
+
+    private static AnswerFailure StepNotFound => new(Messages.StepNotFound, Messages.StepIdFrom, FailureTypes.StepNotFound);
 
     private static Plan Reconciled(Plan plan, IReadOnlyList<Step> steps, string summary, string outcome, DateTimeOffset now)
     {
@@ -80,11 +89,13 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
             : revised with { Status = declared, CompletedAt = now };
     }
 
-    private static string NotYours(Plan plan) =>
-        $"This plan belongs to agent '{plan.AgentId}', and a plan is revised by the agent walking it.";
+    private static AnswerFailure NotYours(Plan plan) =>
+        new($"This plan belongs to agent '{plan.AgentId}'.", Messages.NotYours, FailureTypes.NotYours);
 
-    private static string UnknownOutcome(string outcome) =>
-        $"Unknown outcome '{outcome}'. Allowed: {string.Join(", ", Enum.GetNames<PlanStatus>())}.";
+    private static AnswerFailure UnknownOutcome(string outcome) => new(
+        $"Unknown outcome '{outcome}'.",
+        $"allowed: {string.Join(", ", Enum.GetNames<PlanStatus>())}",
+        FailureTypes.Arguments);
 
     /// <summary>The step list of one revision while the changes are being applied to it.</summary>
     /// <remarks>
@@ -104,7 +115,7 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         public IReadOnlyList<Step> AddedSteps => _added;
 
         /// <summary>Applies one change, answering with a refusal when it cannot be made.</summary>
-        public string? Apply(StepChange change, DateTimeOffset now)
+        public AnswerFailure? Apply(StepChange change, DateTimeOffset now)
         {
             var refusal = change.Kind switch
             {
@@ -112,7 +123,10 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
                 ChangeKind.Edit => Edit(change),
                 ChangeKind.Skip => Skip(change, now),
                 ChangeKind.Reorder => Reorder(change),
-                _ => $"Unknown change '{change.Kind}'. Allowed: {string.Join(", ", Enum.GetNames<ChangeKind>())}."
+                _ => new AnswerFailure(
+                    $"Unknown change '{change.Kind}'.",
+                    $"allowed: {string.Join(", ", Enum.GetNames<ChangeKind>())}",
+                    FailureTypes.Arguments)
             };
 
             if (refusal is null)
@@ -121,10 +135,10 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
             return refusal;
         }
 
-        private string? Add(StepChange change)
+        private AnswerFailure? Add(StepChange change)
         {
             if (string.IsNullOrWhiteSpace(change.Title))
-                return $"{ChangeKind.Add} needs the text of the step to add.";
+                return new($"{ChangeKind.Add} needs the text of the step to add.", "pass it as 'title'", FailureTypes.Arguments);
 
             var step = new Step
             {
@@ -145,32 +159,32 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
             return Insert(step, change.After, chained: true);
         }
 
-        private string? Edit(StepChange change)
+        private AnswerFailure? Edit(StepChange change)
         {
             if (Located(change.StepId) is not { } target)
-                return Messages.StepNotFound;
+                return StepNotFound;
 
             if (string.IsNullOrWhiteSpace(change.Title))
-                return $"{ChangeKind.Edit} needs the new text of the step.";
+                return new($"{ChangeKind.Edit} needs the new text of the step.", "pass it as 'title'", FailureTypes.Arguments);
 
             if (Transitions.IsTerminal(target.Status))
-                return $"Step '{target.Title}' is {target.Status}: a settled step is a record of what happened and is not reworded.";
+                return new($"Step '{target.Title}' is {target.Status}: a settled step is a record of what happened and is not reworded.", Type: FailureTypes.Settled);
 
             Steps = [.. Steps.Select(step => step.Id == target.Id ? step with { Title = change.Title.Trim() } : step)];
 
             return null;
         }
 
-        private string? Skip(StepChange change, DateTimeOffset now)
+        private AnswerFailure? Skip(StepChange change, DateTimeOffset now)
         {
             if (Located(change.StepId) is not { } target)
-                return Messages.StepNotFound;
+                return StepNotFound;
 
             if (string.IsNullOrWhiteSpace(change.Reason))
-                return Messages.SkipReasonRequired;
+                return new(Messages.SkipReasonRequired, $"{Messages.SayWhy} in 'reason'", FailureTypes.Arguments);
 
             if (!Transitions.CanMove(target.Status, StepStatus.Skipped))
-                return $"Step '{target.Title}' is {target.Status} and cannot be skipped.";
+                return new($"Step '{target.Title}' is {target.Status} and cannot be skipped.", Type: FailureTypes.Settled);
 
             var skipped = target with
             {
@@ -184,10 +198,10 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
             return null;
         }
 
-        private string? Reorder(StepChange change)
+        private AnswerFailure? Reorder(StepChange change)
         {
             if (Located(change.StepId) is not { } target)
-                return Messages.StepNotFound;
+                return StepNotFound;
 
             Steps = [.. Steps.Where(step => step.Id != target.Id)];
 
@@ -206,10 +220,10 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         /// each landing behind the previous arrival rather than in front of it. A reorder does not —
         /// "after this step" there means exactly that position, not behind whatever was just added.
         /// </remarks>
-        private string? Insert(Step moving, string afterId, bool chained)
+        private AnswerFailure? Insert(Step moving, string afterId, bool chained)
         {
             if (Located(afterId) is not { } requested)
-                return $"No step with id '{afterId}' to place it after.";
+                return new($"No step with id '{afterId}' to place it after.", Messages.StepIdFrom, FailureTypes.StepNotFound);
 
             var anchorId = chained && _tails.TryGetValue(requested.Id, out var tail) ? tail : requested.Id;
 

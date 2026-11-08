@@ -1,5 +1,6 @@
 using Snail.MCP.Plans.Core.Formatting;
 using Snail.MCP.Plans.Core.Interfaces;
+using Snail.Sdk.Mcp.Hosting.Answers;
 
 namespace Snail.MCP.Plans.Application;
 
@@ -11,10 +12,12 @@ namespace Snail.MCP.Plans.Application;
 public sealed class ActivePlans(IPlanStore plans, TimeProvider clock)
 {
     /// <summary>Every active plan with its counts, current step and how long since it last moved.</summary>
-    public async Task<string> RenderAsync(string projectName = "", CancellationToken cancellationToken = default)
+    /// <remarks>Never a failure: nothing active is an answer about the plans, and the text says which kind of empty it is.</remarks>
+    public async Task<Answer<PrintedListing>> RenderAsync(string projectName = "", CancellationToken cancellationToken = default)
     {
         var active = await plans.ActiveAsync(projectName.Trim(), cancellationToken);
+        var text = PlanView.Active(active, clock.GetUtcNow());
 
-        return PlanView.Active(active, clock.GetUtcNow());
+        return Answer.Ok(new PrintedListing(active, text));
     }
 }

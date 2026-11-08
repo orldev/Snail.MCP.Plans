@@ -1,7 +1,7 @@
 [
   {
     "name": "create_plan",
-    "description": "Draft the plan BEFORE starting a task of more than one step: the objective, then the steps in the\norder they are to be walked. Answers with the plan and the id of every step \u2014 those ids are what\nupdate_step takes.\nOne active plan per project: called while one is already active, it answers with that plan instead\nof drafting a second, so a retried call never leaves two behind.",
+    "description": "Draft the plan BEFORE starting a task of more than one step: the objective, then the steps in the\norder they are to be walked. Answers with data.planId, data.version and data.text \u2014 the plan printed\nwith the id of every step; those ids are what update_step takes.\nOne active plan per project: called while one is already active, it answers with that plan instead\nof drafting a second (data.drafted false), so a retried call never leaves two behind.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -35,7 +35,7 @@
   },
   {
     "name": "get_current_plan",
-    "description": "The plan this agent is working on: the objective, where it stands, and every step with its status\nand id. Needs no arguments \u2014 it answers by the identity of this server process.\nCall it at the start of a session and after losing context, before drafting anything: the plan you\ncannot remember is still here, and drafting a second one for the same work loses the first.\nPass \u0027planId\u0027 to read any plan, including one another agent walks \u2014 that is how you look at a plan\nfrom a different folder, which list_active_plans only summarises. Never call create_plan just to\nlook: it leaves a second plan behind.",
+    "description": "The plan this agent is working on: data.text prints the objective, where it stands, and every step\nwith its status and id; data.planId and data.version are what revise_plan takes. Needs no\narguments \u2014 it answers by the identity of this server process; with no active plan it refuses\nwith type noPlan.\nCall it at the start of a session and after losing context, before drafting anything: the plan you\ncannot remember is still here, and drafting a second one for the same work loses the first.\nPass \u0027planId\u0027 to read any plan, including one another agent walks \u2014 that is how you look at a plan\nfrom a different folder, which list_active_plans only summarises. Never call create_plan just to\nlook: it leaves a second plan behind.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -58,7 +58,7 @@
   },
   {
     "name": "update_step",
-    "description": "Report a step and receive the next one. Call it when you start a step, and again the moment it\nends \u2014 the answer carries the new progress and the next Pending step, so this replaces asking what\nto do next.\nStatus is one of: Pending (not started), InProgress (taken up \u2014 counts an attempt), Done\n(finished), Failed (attempted, did not work \u2014 may be attempted again), Skipped (deliberately not\ndone, and then a note saying why is required).\nA plan runs one step at a time: report the step in progress before taking up another. Took one up\nby mistake? Report it Pending again \u2014 the attempt it already spent is kept, no failure is\ninvented. A step that is Done or Skipped is settled and does not move again.",
+    "description": "Report a step and receive the next one. Call it when you start a step, and again the moment it\nends \u2014 data.text carries the new progress and the next Pending step, whose id is data.nextStepId,\nso this replaces asking what to do next.\nStatus is one of: Pending (not started), InProgress (taken up \u2014 counts an attempt), Done\n(finished), Failed (attempted, did not work \u2014 may be attempted again), Skipped (deliberately not\ndone, and then a note saying why is required).\nA plan runs one step at a time: report the step in progress before taking up another. Took one up\nby mistake? Report it Pending again \u2014 the attempt it already spent is kept, no failure is\ninvented. A step that is Done or Skipped is settled and does not move again.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -101,7 +101,7 @@
   },
   {
     "name": "revise_plan",
-    "description": "Change the plan when the work turns out different from the draft \u2014 a step missing, a step worded\nwrongly, an order that no longer holds. Revise it rather than quietly walking away from it.\nPass the version you last read; if the plan has changed since, nothing is written and you are told\nto read it again. Each change is one of: Add (a new step, at the end or after the step named in\n\u0027after\u0027), Edit (reword a step that has not settled), Skip (take a step out of the work, \u0027reason\u0027\nrequired \u2014 it stays on the record), Reorder (move a step after another, or to the front).\nSteps are never deleted, only Skipped. Optionally pass \u0027summary\u0027 to say where the work stands, and\n\u0027outcome\u0027 to settle the plan: Active (reopen it), Completed, Failed, Abandoned. Left alone, a plan\ncompletes itself once no step is open.",
+    "description": "Change the plan when the work turns out different from the draft \u2014 a step missing, a step worded\nwrongly, an order that no longer holds. Revise it rather than quietly walking away from it.\nPass the version you last read; if the plan has changed since, nothing is written and the call is\nrefused with type versionConflict \u2014 read it again. Each change is one of: Add (a new step, at the\nend or after the step named in \u0027after\u0027), Edit (reword a step that has not settled), Skip (take a\nstep out of the work, \u0027reason\u0027 required \u2014 it stays on the record), Reorder (move a step after\nanother, or to the front).\nSteps are never deleted, only Skipped. Optionally pass \u0027summary\u0027 to say where the work stands, and\n\u0027outcome\u0027 to settle the plan: Active (reopen it), Completed, Failed, Abandoned. Left alone, a plan\ncompletes itself once no step is open.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -180,7 +180,7 @@
   },
   {
     "name": "list_active_plans",
-    "description": "What every agent is working on right now: per plan the objective, step counts by status, the step\nin progress, and how long since it last moved \u2014 that age is what shows an agent stuck or gone.\nThis is the one tool that answers about other agents, not the caller. Answers are capped at 20000\ncharacters and say so when cut.",
+    "description": "What every agent is working on right now: per plan the objective, step counts by status, the step\nin progress, and how long since it last moved \u2014 that age is what shows an agent stuck or gone.\nThis is the one tool that answers about other agents, not the caller. Answers data.count and\ndata.text, which is capped at 20000 characters and says so when cut.",
     "inputSchema": {
       "type": "object",
       "properties": {

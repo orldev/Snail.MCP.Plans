@@ -16,7 +16,7 @@ public class PlanToolsTests
         using var harness = new PlanHarness();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => _tools.ListActivePlans(harness.Active, "", Cancelled()));
+            () => _tools.ListActivePlansAsync(harness.Active, "", Cancelled()));
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public class PlanToolsTests
         using var harness = new PlanHarness();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => _tools.GetCurrentPlan(harness.Progress, "", "", Cancelled()));
+            () => _tools.GetCurrentPlanAsync(harness.Progress, "", "", Cancelled()));
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class PlanToolsTests
         using var harness = new PlanHarness();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => _tools.CreatePlan(harness.Drafting, "ship the server", ["write the store"], "", Cancelled()));
+            () => _tools.CreatePlanAsync(harness.Drafting, "ship the server", ["write the store"], "", Cancelled()));
 
         Assert.Empty(await harness.Plans.ActiveAsync(""));
     }
@@ -45,7 +45,7 @@ public class PlanToolsTests
         using var harness = new PlanHarness();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => _tools.UpdateStep(harness.Progress, Guid.CreateVersion7().ToString(), StepStatus.InProgress, "", "", Cancelled()));
+            () => _tools.UpdateStepAsync(harness.Progress, Guid.CreateVersion7().ToString(), StepStatus.InProgress, "", "", Cancelled()));
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class PlanToolsTests
         using var harness = new PlanHarness();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => _tools.RevisePlan(harness.Revision, Guid.CreateVersion7().ToString(), 1, [], "", "", Cancelled()));
+            () => _tools.RevisePlanAsync(harness.Revision, Guid.CreateVersion7().ToString(), 1, [], "", "", Cancelled()));
     }
 
     private static CancellationToken Cancelled() => new(canceled: true);

@@ -2,6 +2,7 @@ using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
 using Snail.MCP.Plans.Core.Formatting;
 using Snail.MCP.Plans.Core.Interfaces;
+using Snail.Sdk.Mcp.Hosting.Answers;
 
 namespace Snail.MCP.Plans.Application;
 
@@ -11,19 +12,20 @@ namespace Snail.MCP.Plans.Application;
 /// creating one: MCP delivers at least once, so a call that timed out on the way back is retried, and a
 /// plain insert would leave two plans behind. The check before the insert covers the retry; two calls in
 /// flight together both pass it, and then the file's unique index decides and the loser is answered with
-/// the winner's plan.
+/// the winner's plan. That answer is a success with <see cref="PrintedPlan.Drafted"/> false: the retried call got
+/// the plan it asked for.
 /// </remarks>
 public sealed class PlanDrafting(IPlanStore plans, IAgentIdentity identity, TimeProvider clock)
 {
     /// <summary>Stores a new plan and answers with it, or with the active one that blocks it.</summary>
-    public async Task<string> DraftAsync(
+    public async Task<Answer<PrintedPlan>> DraftAsync(
         string objective,
         IReadOnlyList<string> steps,
         string projectName = "",
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(objective))
-            return Messages.ObjectiveRequired;
+            return Answer.Failed(Messages.ObjectiveRequired, type: FailureTypes.Arguments);
 
         IReadOnlyList<string> titles =
         [
@@ -33,7 +35,7 @@ public sealed class PlanDrafting(IPlanStore plans, IAgentIdentity identity, Time
         ];
 
         if (titles.Count is 0)
-            return Messages.StepsRequired;
+            return Answer.Failed(Messages.StepsRequired, Messages.PassTheSteps, FailureTypes.Arguments);
 
         var project = Projects.Resolve(projectName, identity);
         var now = clock.GetUtcNow();
@@ -63,25 +65,35 @@ public sealed class PlanDrafting(IPlanStore plans, IAgentIdentity identity, Time
         if (!await plans.TryAddAsync(plan, cancellationToken))
             return await OutracedAsync(project, now, cancellationToken);
 
-        return PlanView.Render(plan, now, await NeighboursAsync(project, cancellationToken));
+        var text = PlanView.Render(plan, now, await NeighboursAsync(project, cancellationToken));
+
+        return Answer.Ok(new PrintedPlan(plan, text, Drafted: true));
     }
 
     /// <remarks>
     /// The index refused the insert because an active plan of this agent and project exists. When the read that
     /// follows finds none, readable or not, it was settled a moment ago.
     /// </remarks>
-    private async Task<string> OutracedAsync(string project, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task<Answer<PrintedPlan>> OutracedAsync(string project, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var current = await plans.CurrentAsync(identity.AgentId, project, cancellationToken);
 
-        return current.Count > 0 || current.UnreadablePlans > 0 ? Blocked(current, now) : Messages.DraftOutraced;
+        if (current.Count > 0 || current.UnreadablePlans > 0)
+            return Blocked(current, now);
+
+        return Answer.Failed(Messages.DraftOutraced, Messages.DraftAgain, FailureTypes.Outraced);
     }
 
     /// <remarks>An active plan of this agent blocks a new one whether it can be read or not; only the readable one can be shown.</remarks>
-    private static string Blocked(PlanListing current, DateTimeOffset now) =>
-        current.Count > 0
-            ? PlanView.Render(current[0], now, Messages.PlanAlreadyActive)
-            : Messages.DraftBlockedByUnreadable;
+    private static Answer<PrintedPlan> Blocked(PlanListing current, DateTimeOffset now)
+    {
+        if (current.Count is 0)
+            return Answer.Failed(Messages.DraftBlockedByUnreadable, Messages.FixTheRowThenDraft, FailureTypes.Unreadable);
+
+        var text = PlanView.Render(current[0], now, Messages.PlanAlreadyActive);
+
+        return Answer.Ok(new PrintedPlan(current[0], text, Drafted: false));
+    }
 
     /// <remarks>Named rather than hidden: both plans are legitimate, and the one thing the agent must not do is report steps of the plan it does not own.</remarks>
     private async Task<string> NeighboursAsync(string project, CancellationToken cancellationToken)
