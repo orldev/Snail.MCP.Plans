@@ -19,8 +19,10 @@ public static class ServerGuidance
         Before starting a multi-step task, call create_plan with the objective and the steps.
 
         Then walk the plan in order. Call update_step when you take a step up (InProgress) and again the
-        moment it ends (Done, or Failed with a note). Its answer already carries the progress and the next
-        step, so never ask separately what comes next.
+        moment it ends (Done, or Failed with a note); a step done in one go goes straight to Done. Its
+        answer already carries the progress and the next step, so never ask separately what comes next.
+
+        A plan that is over or no longer wanted is closed by revise_plan with its outcome alone.
 
         When the work turns out different from the draft, call revise_plan instead of quietly departing
         from the plan: add the step you found missing, reword one, skip one with a reason, reorder them.

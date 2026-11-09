@@ -9,6 +9,8 @@ public class TransitionsTests
     [Theory]
     [InlineData(StepStatus.Pending, StepStatus.InProgress)]
     [InlineData(StepStatus.Pending, StepStatus.Skipped)]
+    [InlineData(StepStatus.Pending, StepStatus.Done)]
+    [InlineData(StepStatus.Pending, StepStatus.Failed)]
     [InlineData(StepStatus.InProgress, StepStatus.Done)]
     [InlineData(StepStatus.InProgress, StepStatus.Failed)]
     [InlineData(StepStatus.InProgress, StepStatus.Skipped)]
@@ -19,8 +21,8 @@ public class TransitionsTests
         Assert.True(Transitions.CanMove(from, to));
 
     [Theory]
-    [InlineData(StepStatus.Pending, StepStatus.Done)]
-    [InlineData(StepStatus.Pending, StepStatus.Failed)]
+    [InlineData(StepStatus.Pending, StepStatus.Pending)]
+    [InlineData(StepStatus.Failed, StepStatus.Done)]
     [InlineData(StepStatus.Done, StepStatus.InProgress)]
     [InlineData(StepStatus.Done, StepStatus.Failed)]
     [InlineData(StepStatus.Skipped, StepStatus.InProgress)]
@@ -28,11 +30,11 @@ public class TransitionsTests
     public void Step_MovingOffTheTable_IsRefused(StepStatus from, StepStatus to) =>
         Assert.False(Transitions.CanMove(from, to));
 
-    /// A step cannot be marked finished without being taken up first: the attempt count is what makes a
-    /// retry visible, and a jump from Pending to Done would leave it at zero.
+    /// A step not taken up may be finished in one call, which counts as taking it up; a failed one is taken up again
+    /// first, so a retry stays visible as its own attempt.
     [Fact]
-    public void Step_JumpingStraightToDone_IsRefused() =>
-        Assert.False(Transitions.CanMove(StepStatus.Pending, StepStatus.Done));
+    public void Step_FinishedInOneCall_StartsFromPendingOnly() =>
+        Assert.True(Transitions.TakesUp(StepStatus.Pending, StepStatus.Done) && !Transitions.TakesUp(StepStatus.InProgress, StepStatus.Done));
 
     /// A step taken up by mistake has to have a way back, or the only escape from the plan's single
     /// slot is reporting a failure that never happened.

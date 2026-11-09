@@ -97,11 +97,51 @@ public class PlanProgressTests
     {
         using var harness = new PlanHarness();
         var plan = await Drafted(harness, "write the store");
+        var step = plan.Steps[0].Id.ToString();
 
-        var answer = await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.Done);
+        await harness.Progress.AdvanceAsync(step, StepStatus.InProgress);
+        await harness.Progress.AdvanceAsync(step, StepStatus.Failed, "the file was locked");
+        var answer = await harness.Progress.AdvanceAsync(step, StepStatus.Done);
 
+        answer.IsRefused($"Step 'write the store' is {StepStatus.Failed}, so it cannot move to {StepStatus.Done}.", FailureTypes.Transition);
         Assert.Contains(nameof(StepStatus.InProgress), answer.Words(), StringComparison.Ordinal);
         Assert.Contains(nameof(StepStatus.Skipped), answer.Words(), StringComparison.Ordinal);
+    }
+
+    /// Agents report a short step once, when it is over: 106 of 2031 update_step calls in two weeks went straight from
+    /// Pending to Done and were refused, each costing a second call. The one call counts as taking the step up.
+    [Theory]
+    [InlineData(StepStatus.Done)]
+    [InlineData(StepStatus.Failed)]
+    public async Task Advance_StraightFromPending_CountsTheStepAsTakenUp(StepStatus status)
+    {
+        using var harness = new PlanHarness();
+        var plan = await Drafted(harness, "write the store", "wire the tools");
+
+        var answer = await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), status, "in one go");
+
+        Assert.True(answer.IsSuccess, answer.Words());
+
+        var reread = (await harness.Plans.FindAsync(plan.Id)).FirstOrDefault();
+
+        Assert.Equal(status, reread!.Steps[0].Status);
+        Assert.Equal(1, reread.Steps[0].Attempts);
+        Assert.NotNull(reread.Steps[0].StartedAt);
+    }
+
+    /// Finishing a step in one call still takes it up, so the plan's single slot holds: with another step in progress
+    /// the call is refused rather than letting two steps run at once.
+    [Fact]
+    public async Task Advance_StraightFromPendingWhileAnotherStepIsInProgress_IsRefused()
+    {
+        using var harness = new PlanHarness();
+        var plan = await Drafted(harness, "write the store", "wire the tools");
+
+        await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.InProgress);
+        var answer = await harness.Progress.AdvanceAsync(plan.Steps[1].Id.ToString(), StepStatus.Done);
+
+        Assert.Contains("one step at a time", answer.Words(), StringComparison.Ordinal);
+        Assert.Contains("write the store", answer.Words(), StringComparison.Ordinal);
     }
 
     [Fact]

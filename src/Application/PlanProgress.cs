@@ -128,17 +128,22 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
     }
 
     /// <remarks>Going back to <see cref="StepStatus.Pending"/> keeps the attempt that was spent: the step was taken up, and hiding that would understate what the plan cost.</remarks>
-    private static Step Moved(Step step, StepStatus status, string note, DateTimeOffset now) => step with
+    private static Step Moved(Step step, StepStatus status, string note, DateTimeOffset now)
     {
-        Status = status,
-        Note = string.IsNullOrWhiteSpace(note) ? step.Note : note.Trim(),
-        Attempts = status is StepStatus.InProgress ? step.Attempts + 1 : step.Attempts,
-        StartedAt = status is StepStatus.InProgress ? now : step.StartedAt,
-        CompletedAt = status is StepStatus.InProgress or StepStatus.Pending ? null : now
-    };
+        var takenUp = Transitions.TakesUp(step.Status, status);
+
+        return step with
+        {
+            Status = status,
+            Note = string.IsNullOrWhiteSpace(note) ? step.Note : note.Trim(),
+            Attempts = takenUp ? step.Attempts + 1 : step.Attempts,
+            StartedAt = takenUp ? now : step.StartedAt,
+            CompletedAt = status is StepStatus.InProgress or StepStatus.Pending ? null : now
+        };
+    }
 
     private static Step? Occupied(Plan plan, Step moving, StepStatus status) =>
-        status is StepStatus.InProgress
+        Transitions.TakesUp(moving.Status, status)
             ? plan.Steps.FirstOrDefault(step => step.Status is StepStatus.InProgress && step.Id != moving.Id)
             : null;
 

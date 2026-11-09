@@ -37,7 +37,8 @@ public static class ToolDescriptions
         Status is one of: Pending (not started), InProgress (taken up — counts an attempt), Done
         (finished), Failed (attempted, did not work — may be attempted again), Skipped (deliberately not
         done, and then a note saying why is required).
-        A plan runs one step at a time: report the step in progress before taking up another. Took one up
+        A step done in one go may go from Pending straight to Done or Failed: that call counts as taking it
+        up. A plan runs one step at a time: report the step in progress before taking up another. Took one up
         by mistake? Report it Pending again — the attempt it already spent is kept, no failure is
         invented. A step that is Done or Skipped is settled and does not move again.
         """;
