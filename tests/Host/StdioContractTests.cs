@@ -157,6 +157,29 @@ public class StdioContractTests
         Assert.Equal("versionConflict", answer.Type());
     }
 
+    /// A plan is settled by its outcome alone, the way agents call it: with the changes required, four calls in two
+    /// weeks closing a plan never reached the tool and came back as "An error occurred invoking 'revise_plan'".
+    [Fact]
+    public async Task RevisePlan_WithAnOutcomeAndNoChanges_SettlesThePlan()
+    {
+        await using var client = await StartAsync("settling-agent");
+
+        var drafted = await CallAsync(client, "create_plan", new()
+        {
+            ["objective"] = "settle without changes",
+            ["steps"] = new[] { "never started" }
+        });
+
+        var settled = await CallAsync(client, "revise_plan", new()
+        {
+            ["planId"] = (string?)drafted["planId"],
+            ["version"] = (int?)drafted["version"],
+            ["outcome"] = "Abandoned"
+        });
+
+        Assert.Equal(nameof(PlanStatus.Abandoned), (string?)settled["status"]);
+    }
+
     /// A status the schema does not name never reaches the tool: the answer says which parameter was wrong and what it
     /// takes, flagged as an error, instead of the MCP SDK's bare "An error occurred invoking".
     [Fact]

@@ -50,16 +50,20 @@ public sealed class PlanTools
         ToolAnswer.From(await progress.AdvanceAsync(stepId, status, note, projectName, cancellationToken), AnswerFields.Of, AnswerShape.None);
 
     /// <summary>Applies changes to the step list of a plan.</summary>
+    /// <remarks>
+    /// The changes are optional but typed as never null: declared <c>StepChange[]?</c>, the published schema let every
+    /// change and every field of one be null as well, which the tool would only fail on inside.
+    /// </remarks>
     [McpServerTool(Name = "revise_plan", ReadOnly = false, Destructive = false), Description(ToolDescriptions.RevisePlan)]
     public async Task<CallToolResult> RevisePlanAsync(
         PlanRevision revision,
         [Description("Id of the plan to change.")] string planId,
         [Description("Version of the plan you last read; a stale version writes nothing.")] int version,
-        [Description("The changes, applied in the order given.")] StepChange[] changes,
+        [Description("The changes, applied in the order given. Empty — none, to settle the plan by its outcome alone.")] StepChange[] changes = null!,
         [Description("Where the work stands now. Empty — left as it was.")] string summary = "",
         [Description("Settle the plan: Active, Completed, Failed or Abandoned. Empty — decided by the steps.")] string outcome = "",
         CancellationToken cancellationToken = default) =>
-        ToolAnswer.From(await revision.ReviseAsync(planId, version, changes, summary, outcome, cancellationToken), AnswerFields.Of, AnswerShape.None);
+        ToolAnswer.From(await revision.ReviseAsync(planId, version, changes ?? [], summary, outcome, cancellationToken), AnswerFields.Of, AnswerShape.None);
 
     /// <summary>Answers with every active plan and how far along it is.</summary>
     [McpServerTool(Name = "list_active_plans", ReadOnly = true, Idempotent = true, OpenWorld = false), Description(ToolDescriptions.ListActivePlans)]
