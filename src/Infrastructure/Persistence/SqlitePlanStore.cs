@@ -92,16 +92,6 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
     /// <remarks>The extended code rather than the primary 19, which a foreign key or a NOT NULL column returns as well.</remarks>
     private const int UniqueViolation = 2067;
 
-    /// <summary>Taken around every open: connections of one file are opened one at a time.</summary>
-    /// <remarks>
-    /// Microsoft.Data.Sqlite 10.0.11 and 10.0.12 mark a pooled connection active before naming its owner, and an
-    /// open that finds the pool empty reclaims every active connection without an owner: one being opened at that
-    /// moment goes back to the pool and two callers share its handle (dotnet/efcore#39008, fixed after 10.0.12). The
-    /// pool belongs to the process, not to a store, so the lock does too. An open costs microseconds; tool calls come
-    /// seconds apart.
-    /// </remarks>
-    private static readonly Lock Opening = new();
-
     /// <summary>The connection string with the foreign keys switched on, which the open then does by itself.</summary>
     private readonly string _database = new SqliteConnectionStringBuilder(database) { ForeignKeys = true }.ToString();
 
@@ -372,13 +362,15 @@ public sealed class SqlitePlanStore(string database) : IPlanStore, IDisposable
     }
 
     /// <summary>A new open connection of the file.</summary>
-    /// <remarks>Opened synchronously because it is opened under <see cref="Opening"/>, and a lock cannot be held across an await.</remarks>
+    /// <remarks>
+    /// Opened synchronously, as Microsoft.Data.Sqlite opens even when asked asynchronously, so no await stands between
+    /// creating the connection and handing it over. Opens no longer go one at a time: the pool that lent one connection
+    /// to two callers (dotnet/efcore#39008) is fixed from 10.0.13, which the fix commit's place in the tags confirms.
+    /// </remarks>
     private SqliteConnection Opened()
     {
         var connection = new SqliteConnection(_database);
-
-        lock (Opening)
-            connection.Open();
+        connection.Open();
 
         return connection;
     }
