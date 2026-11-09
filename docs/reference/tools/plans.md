@@ -97,7 +97,8 @@ so this replaces asking what to do next.
 Status is one of: Pending (not started), InProgress (taken up — counts an attempt), Done
 (finished), Failed (attempted, did not work — may be attempted again), Skipped (deliberately not
 done, and then a note saying why is required).
-A plan runs one step at a time: report the step in progress before taking up another. Took one up
+A step done in one go may go from Pending straight to Done or Failed: that call counts as taking it
+up. A plan runs one step at a time: report the step in progress before taking up another. Took one up
 by mistake? Report it Pending again — the attempt it already spent is kept, no failure is
 invented. A step that is Done or Skipped is settled and does not move again.
 
@@ -161,8 +162,8 @@ end or after the step named in 'after'), Edit (reword a step that has not settle
 step out of the work, 'reason' required — it stays on the record), Reorder (move a step after
 another, or to the front).
 Steps are never deleted, only Skipped. Optionally pass 'summary' to say where the work stands, and
-'outcome' to settle the plan: Active (reopen it), Completed, Failed, Abandoned. Left alone, a plan
-completes itself once no step is open.
+'outcome' to settle the plan: Active (reopen it), Completed, Failed, Abandoned — on its own, with
+no changes, it closes the plan. Left alone, a plan completes itself once no step is open.
 Answers with the plan as it now stands and its new version; the ids of the steps it added are
 printed first, before the plan.
 
@@ -172,7 +173,7 @@ printed first, before the plan.
 | --- | --- | --- | --- | --- |
 | `planId` | `string` | yes | — | Id of the plan to change. |
 | `version` | `integer` | yes | — | Version of the plan you last read; a stale version writes nothing. |
-| `changes` | `array` | yes | — | The changes, applied in the order given. |
+| `changes` | `array` | — | `null` | The changes, applied in the order given. Empty — none, to settle the plan by its outcome alone. |
 | `summary` | `string` | — | `` | Where the work stands now. Empty — left as it was. |
 | `outcome` | `string` | — | `` | Settle the plan: Active, Completed, Failed or Abandoned. Empty — decided by the steps. |
 
@@ -191,7 +192,7 @@ printed first, before the plan.
       "type": "integer"
     },
     "changes": {
-      "description": "The changes, applied in the order given.",
+      "description": "The changes, applied in the order given. Empty \u2014 none, to settle the plan by its outcome alone.",
       "type": "array",
       "items": {
         "type": "object",
@@ -230,7 +231,8 @@ printed first, before the plan.
         "required": [
           "kind"
         ]
-      }
+      },
+      "default": null
     },
     "summary": {
       "description": "Where the work stands now. Empty \u2014 left as it was.",
@@ -245,8 +247,7 @@ printed first, before the plan.
   },
   "required": [
     "planId",
-    "version",
-    "changes"
+    "version"
   ]
 }
 ```

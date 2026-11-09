@@ -57,16 +57,18 @@ to add to `CLAUDE.md` per project.
 | `create_plan` | Draft the objective and the steps before starting a multi-step task. |
 | `get_current_plan` | Takes no arguments — answers with this agent's plan. The call to make after losing context. Pass `planId` to read any plan, including another agent's. |
 | `update_step` | Report a step and receive the next one in the same answer. |
-| `revise_plan` | Add, reword, skip or reorder steps as the work turns out different from the draft. |
+| `revise_plan` | Add, reword, skip or reorder steps as the work turns out different from the draft; an `outcome` alone closes the plan. |
 | `list_active_plans` | What every agent is working on, and how far along. The one tool that answers about others. |
 
 A step moves `Pending → InProgress → Done | Failed | Skipped`, a failed step may be attempted again, and
-one taken up by mistake goes back to `Pending` without inventing a failure.
+one taken up by mistake goes back to `Pending` without inventing a failure. A step done in one go may go
+from `Pending` straight to `Done` or `Failed`; that call counts as taking it up.
 Steps are never deleted, only skipped with a reason — progress you read from another session cannot be
 improved by dropping the inconvenient steps, which is also why the answer carries counts per status and
 the age of the last write rather than a percentage.
 
-A plan needs no closing call: it completes itself once no step is open, and reopens if you add one.
+A plan needs no closing call: it completes itself once no step is open, and reopens if you add one. To close
+it sooner, `revise_plan` takes an `outcome` — `Completed`, `Failed` or `Abandoned` — with no changes.
 
 ## What the tools answer
 

@@ -60,7 +60,7 @@
   },
   {
     "name": "update_step",
-    "description": "Report a step and receive the next one. Call it when you start a step, and again the moment it\nends \u2014 data.text carries the new progress and the next Pending step, whose id is data.nextStepId,\nso this replaces asking what to do next.\nStatus is one of: Pending (not started), InProgress (taken up \u2014 counts an attempt), Done\n(finished), Failed (attempted, did not work \u2014 may be attempted again), Skipped (deliberately not\ndone, and then a note saying why is required).\nA plan runs one step at a time: report the step in progress before taking up another. Took one up\nby mistake? Report it Pending again \u2014 the attempt it already spent is kept, no failure is\ninvented. A step that is Done or Skipped is settled and does not move again.",
+    "description": "Report a step and receive the next one. Call it when you start a step, and again the moment it\nends \u2014 data.text carries the new progress and the next Pending step, whose id is data.nextStepId,\nso this replaces asking what to do next.\nStatus is one of: Pending (not started), InProgress (taken up \u2014 counts an attempt), Done\n(finished), Failed (attempted, did not work \u2014 may be attempted again), Skipped (deliberately not\ndone, and then a note saying why is required).\nA step done in one go may go from Pending straight to Done or Failed: that call counts as taking it\nup. A plan runs one step at a time: report the step in progress before taking up another. Took one up\nby mistake? Report it Pending again \u2014 the attempt it already spent is kept, no failure is\ninvented. A step that is Done or Skipped is settled and does not move again.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -103,7 +103,7 @@
   },
   {
     "name": "revise_plan",
-    "description": "Change the plan when the work turns out different from the draft \u2014 a step missing, a step worded\nwrongly, an order that no longer holds. Revise it rather than quietly walking away from it.\nPass the version you last read; if the plan has changed since, nothing is written and the call is\nrefused with type versionConflict \u2014 read it again. Each change is one of: Add (a new step, at the\nend or after the step named in \u0027after\u0027), Edit (reword a step that has not settled), Skip (take a\nstep out of the work, \u0027reason\u0027 required \u2014 it stays on the record), Reorder (move a step after\nanother, or to the front).\nSteps are never deleted, only Skipped. Optionally pass \u0027summary\u0027 to say where the work stands, and\n\u0027outcome\u0027 to settle the plan: Active (reopen it), Completed, Failed, Abandoned. Left alone, a plan\ncompletes itself once no step is open.\nAnswers with the plan as it now stands and its new version; the ids of the steps it added are\nprinted first, before the plan.",
+    "description": "Change the plan when the work turns out different from the draft \u2014 a step missing, a step worded\nwrongly, an order that no longer holds. Revise it rather than quietly walking away from it.\nPass the version you last read; if the plan has changed since, nothing is written and the call is\nrefused with type versionConflict \u2014 read it again. Each change is one of: Add (a new step, at the\nend or after the step named in \u0027after\u0027), Edit (reword a step that has not settled), Skip (take a\nstep out of the work, \u0027reason\u0027 required \u2014 it stays on the record), Reorder (move a step after\nanother, or to the front).\nSteps are never deleted, only Skipped. Optionally pass \u0027summary\u0027 to say where the work stands, and\n\u0027outcome\u0027 to settle the plan: Active (reopen it), Completed, Failed, Abandoned \u2014 on its own, with\nno changes, it closes the plan. Left alone, a plan completes itself once no step is open.\nAnswers with the plan as it now stands and its new version; the ids of the steps it added are\nprinted first, before the plan.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -116,7 +116,7 @@
           "type": "integer"
         },
         "changes": {
-          "description": "The changes, applied in the order given.",
+          "description": "The changes, applied in the order given. Empty \u2014 none, to settle the plan by its outcome alone.",
           "type": "array",
           "items": {
             "type": "object",
@@ -155,7 +155,8 @@
             "required": [
               "kind"
             ]
-          }
+          },
+          "default": null
         },
         "summary": {
           "description": "Where the work stands now. Empty \u2014 left as it was.",
@@ -170,8 +171,7 @@
       },
       "required": [
         "planId",
-        "version",
-        "changes"
+        "version"
       ]
     },
     "annotations": {
