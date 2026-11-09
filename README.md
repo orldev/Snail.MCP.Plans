@@ -71,8 +71,8 @@ A plan needs no closing call: it completes itself once no step is open, and reop
 ## What the tools answer
 
 Every answer is the envelope every Snail server answers in: one block of JSON with an `ok` flag. On success `data.text`
-is the plan as the agent reads it, and beside it go the ids and the version the next call takes, so nothing has to be
-read out of the text:
+is the plan as the agent reads it, every step id printed in it, and beside it go the plan's id and version — and, from
+`update_step`, the step's id and the next one's — so a script reads those without parsing the text:
 
 ```json
 {"ok":true,"data":{"planId":"0199…","version":3,"planStatus":"Active","stepId":"0199…","status":"Done","nextStepId":"0199…","text":"Done: write the store\nprogress: 2 steps — 1 Done, …\n\nnext step — 0199…: wire the tools\n"}}
@@ -108,17 +108,19 @@ copied.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `SNAIL_MCP_PLANS_AGENTID` | the folder the server runs in | Who the plans belong to. Two sessions started in the same folder share a plan on purpose — the second continues the first. |
-| `SNAIL_MCP_PLANS_DBPATH` | `~/.s3l-mcp-plans/plans.db` | The SQLite file. Point several clients at one file to see each other's plans. |
-| `SNAIL_MCP_PLANS_BUSYTIMEOUTSECONDS` | `10` | How long a write waits when another session is writing. |
+| `SNAIL_MCP_PLANS_AGENT_ID` | the folder the server runs in | Who the plans belong to. Two sessions started in the same folder share a plan on purpose — the second continues the first. |
+| `SNAIL_MCP_PLANS_DIRECTORY` | `~/.s3l-mcp-plans` | The data folder the SQLite file lies in unless `DB_PATH` names another. |
+| `SNAIL_MCP_PLANS_DB_PATH` | `{DIRECTORY}/plans.db` | The SQLite file. Point several clients at one file to see each other's plans. |
+| `SNAIL_MCP_PLANS_BUSY_TIMEOUT_SECONDS` | `10` | How long a write waits when another session is writing. |
 | `SNAIL_MCP_PLANS_CONFIG` | — | An explicit settings file, the only one read: when it is missing, no file is. |
 
-The database is opened in write-ahead logging mode, so a second session reads it while the first one writes.
+A single underscore in a variable's name is optional (`SNAIL_MCP_PLANS_AGENTID` is read too); the server names a
+setting the way the table spells it. The database is opened in write-ahead logging mode, so a second session reads it while the first one writes.
 
 ## Building from source
 
 ```bash
-dotnet test    # 172 tests, including contract tests over the real stdio process
+dotnet test    # 173 tests, including contract tests over the real stdio process
 dotnet run --project src
 ```
 

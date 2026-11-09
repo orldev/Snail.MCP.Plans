@@ -54,6 +54,8 @@ public static class ToolDescriptions
         Steps are never deleted, only Skipped. Optionally pass 'summary' to say where the work stands, and
         'outcome' to settle the plan: Active (reopen it), Completed, Failed, Abandoned. Left alone, a plan
         completes itself once no step is open.
+        Answers with the plan as it now stands and its new version; the ids of the steps it added are
+        printed first, before the plan.
         """;
 
     /// <summary>Contract of <c>list_active_plans</c>.</summary>

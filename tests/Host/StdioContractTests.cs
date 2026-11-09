@@ -170,7 +170,7 @@ public class StdioContractTests
 
         Assert.True(answer.IsError, answer.Text());
         Assert.False(answer.IsOk(), answer.Text());
-        Assert.Equal("arguments", answer.Type());
+        Assert.Equal(ToolFailures.Arguments, answer.Type());
     }
 
     /// stdio carries JSON-RPC only: a single stray write breaks every MCP client. The client of <see cref="ServerProgram"/>
@@ -245,6 +245,27 @@ public class StdioContractTests
             if (!process.HasExited)
                 process.Kill(entireProcessTree: true);
         }
+    }
+
+    /// The settings are bound while the services are registered, before the host is built: a word for a number crashed
+    /// the program with the binder's trace and exit code 134. It names the variable in one line and exits with 1, the
+    /// native build too, whose binding source generator replaces the reflection binder.
+    [Fact]
+    public async Task Program_SettingOfTheWrongType_ExitsNamingTheVariable()
+    {
+        var environment = new Dictionary<string, string?>
+        {
+            [Prefix + "DBPATH"] = Path.Combine(TestFolder.Create(), "plans.db"),
+            [Prefix + "BUSY_TIMEOUT_SECONDS"] = "abc"
+        };
+
+        var exited = await Assert.ThrowsAsync<ServerExitedException>(() => ServerProgram.StartAsync(Assembly, Variable, environment));
+
+        Assert.Equal(1, exited.ExitCode);
+        Assert.Equal(
+            "SNAIL_MCP_PLANS_BUSY_TIMEOUT_SECONDS (or BusyTimeoutSeconds in the settings file) is 'abc'; it is not a number (Int32).",
+            exited.Stderr.Trim());
+        Assert.DoesNotContain("   at ", exited.Stderr, StringComparison.Ordinal);
     }
 
     private static object Handshake => new

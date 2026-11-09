@@ -31,8 +31,25 @@ public sealed class PlanOptions
     public int? BusyTimeoutSeconds { get; set; }
 
     /// <summary>Binds the options from the server's settings: its settings file and its variables, which win (<see cref="ServerSettings"/>).</summary>
-    /// <remarks>The host has read them already (<see cref="McpHost.CreateBuilder(string[])"/>); reading them a second time here could only disagree with it.</remarks>
-    public static PlanOptions From(IConfiguration settings) => settings.Get<PlanOptions>() ?? new PlanOptions();
+    /// <remarks>
+    /// <para>The host has read them already (<see cref="McpHost.CreateBuilder(string[])"/>); reading them a second time here could only disagree with it.</para>
+    /// <para>
+    /// Bound while the services are registered, before the host is built, so a value its property's type cannot hold —
+    /// <c>SNAIL_MCP_PLANS_BUSY_TIMEOUT_SECONDS=abc</c> — is refused through
+    /// <see cref="ServerSettings.Bind(string, IConfiguration, Action{IConfiguration})"/> as a <see cref="StartRefusedException"/>
+    /// naming the variable, where the binder's bare exception crashed the program with a trace. The call to <c>Get</c> stays
+    /// written here, where the native build's binding source generator replaces it.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="StartRefusedException">A setting holds a value its property's type cannot hold.</exception>
+    public static PlanOptions From(IConfiguration settings)
+    {
+        PlanOptions? bound = null;
+
+        ServerSettings.Bind(ServerName, settings, read => bound = read.Get<PlanOptions>());
+
+        return bound ?? new PlanOptions();
+    }
 
     /// <summary>Reads options from <paramref name="file"/>, when there is one, and the server's variables among <paramref name="variables"/>.</summary>
     internal static PlanOptions Load(string? file, IDictionary variables) =>

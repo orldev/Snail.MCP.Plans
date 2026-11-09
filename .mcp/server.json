@@ -8,19 +8,44 @@
       "registryType": "nuget",
       "identifier": "Snail.MCP.Plans",
       "version": "0.1.0",
-      "transport": { "type": "stdio" },
+      "transport": {
+        "type": "stdio"
+      },
       "environmentVariables": [
         {
-          "name": "SNAIL_MCP_PLANS_AGENTID",
+          "name": "SNAIL_MCP_PLANS_AGENT_ID",
           "description": "Identity of this agent. Empty — the working directory of the server process.",
           "isRequired": false
         },
         {
-          "name": "SNAIL_MCP_PLANS_DBPATH",
-          "description": "SQLite database file. Empty — ~/.s3l-mcp-plans/plans.db",
-          "isRequired": false
+          "name": "SNAIL_MCP_PLANS_DIRECTORY",
+          "description": "Data folder. Empty — ~/.s3l-mcp-plans",
+          "isRequired": false,
+          "format": "filepath"
+        },
+        {
+          "name": "SNAIL_MCP_PLANS_DB_PATH",
+          "description": "SQLite database file. Empty — {Directory}/plans.db",
+          "isRequired": false,
+          "format": "filepath"
+        },
+        {
+          "name": "SNAIL_MCP_PLANS_BUSY_TIMEOUT_SECONDS",
+          "description": "Seconds a write waits for another session's write. Empty — 10.",
+          "isRequired": false,
+          "default": "10"
+        },
+        {
+          "name": "SNAIL_MCP_PLANS_CONFIG",
+          "description": "An explicit settings file, the only one read: when it is missing, no file is.",
+          "isRequired": false,
+          "format": "filepath"
         }
       ]
     }
-  ]
+  ],
+  "repository": {
+    "url": "https://github.com/orldev/Snail.MCP.Plans",
+    "source": "github"
+  }
 }

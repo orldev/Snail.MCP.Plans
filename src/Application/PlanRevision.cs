@@ -2,6 +2,7 @@ using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
 using Snail.MCP.Plans.Core.Formatting;
 using Snail.MCP.Plans.Core.Interfaces;
+using Snail.Sdk.Mcp.Hosting;
 using Snail.Sdk.Mcp.Hosting.Answers;
 
 namespace Snail.MCP.Plans.Application;
@@ -63,11 +64,11 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         return Answer.Ok(new PrintedPlan(updated, text));
     }
 
-    private static AnswerFailure PlanNotFound => new(Messages.PlanNotFound, Messages.PlanIdFrom, FailureTypes.PlanNotFound);
+    private static AnswerFailure PlanNotFound => Answer.Failed(Messages.PlanNotFound, Messages.PlanIdFrom, FailureTypes.PlanNotFound);
 
-    private static AnswerFailure VersionConflict => new(Messages.VersionConflict, Messages.ReadAgain, FailureTypes.VersionConflict);
+    private static AnswerFailure VersionConflict => Answer.Failed(Messages.VersionConflict, Messages.ReadAgain, FailureTypes.VersionConflict);
 
-    private static AnswerFailure StepNotFound => new(Messages.StepNotFound, Messages.StepIdFrom, FailureTypes.StepNotFound);
+    private static AnswerFailure StepNotFound => Answer.Failed(Messages.StepNotFound, Messages.StepIdFrom, FailureTypes.StepNotFound);
 
     private static Plan Reconciled(Plan plan, IReadOnlyList<Step> steps, string summary, string outcome, DateTimeOffset now)
     {
@@ -90,12 +91,12 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
     }
 
     private static AnswerFailure NotYours(Plan plan) =>
-        new($"This plan belongs to agent '{plan.AgentId}'.", Messages.NotYours, FailureTypes.NotYours);
+        Answer.Failed($"This plan belongs to agent '{plan.AgentId}'.", Messages.NotYours, FailureTypes.NotYours);
 
-    private static AnswerFailure UnknownOutcome(string outcome) => new(
+    private static AnswerFailure UnknownOutcome(string outcome) => Answer.Failed(
         $"Unknown outcome '{outcome}'.",
         $"allowed: {string.Join(", ", Enum.GetNames<PlanStatus>())}",
-        FailureTypes.Arguments);
+        ToolFailures.Arguments);
 
     /// <summary>The step list of one revision while the changes are being applied to it.</summary>
     /// <remarks>
@@ -123,10 +124,10 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
                 ChangeKind.Edit => Edit(change),
                 ChangeKind.Skip => Skip(change, now),
                 ChangeKind.Reorder => Reorder(change),
-                _ => new AnswerFailure(
+                _ => Answer.Failed(
                     $"Unknown change '{change.Kind}'.",
                     $"allowed: {string.Join(", ", Enum.GetNames<ChangeKind>())}",
-                    FailureTypes.Arguments)
+                    ToolFailures.Arguments)
             };
 
             if (refusal is null)
@@ -138,7 +139,7 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         private AnswerFailure? Add(StepChange change)
         {
             if (string.IsNullOrWhiteSpace(change.Title))
-                return new($"{ChangeKind.Add} needs the text of the step to add.", "pass it as 'title'", FailureTypes.Arguments);
+                return Answer.Failed($"{ChangeKind.Add} needs the text of the step to add.", "pass it as 'title'", ToolFailures.Arguments);
 
             var step = new Step
             {
@@ -165,10 +166,10 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
                 return StepNotFound;
 
             if (string.IsNullOrWhiteSpace(change.Title))
-                return new($"{ChangeKind.Edit} needs the new text of the step.", "pass it as 'title'", FailureTypes.Arguments);
+                return Answer.Failed($"{ChangeKind.Edit} needs the new text of the step.", "pass it as 'title'", ToolFailures.Arguments);
 
             if (Transitions.IsTerminal(target.Status))
-                return new($"Step '{target.Title}' is {target.Status}: a settled step is a record of what happened and is not reworded.", Type: FailureTypes.Settled);
+                return Answer.Failed($"Step '{target.Title}' is {target.Status}: a settled step is a record of what happened and is not reworded.", type: FailureTypes.Settled);
 
             Steps = [.. Steps.Select(step => step.Id == target.Id ? step with { Title = change.Title.Trim() } : step)];
 
@@ -181,10 +182,10 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
                 return StepNotFound;
 
             if (string.IsNullOrWhiteSpace(change.Reason))
-                return new(Messages.SkipReasonRequired, $"{Messages.SayWhy} in 'reason'", FailureTypes.Arguments);
+                return Answer.Failed(Messages.SkipReasonRequired, $"{Messages.SayWhy} in 'reason'", ToolFailures.Arguments);
 
             if (!Transitions.CanMove(target.Status, StepStatus.Skipped))
-                return new($"Step '{target.Title}' is {target.Status} and cannot be skipped.", Type: FailureTypes.Settled);
+                return Answer.Failed($"Step '{target.Title}' is {target.Status} and cannot be skipped.", type: FailureTypes.Settled);
 
             var skipped = target with
             {
@@ -223,7 +224,7 @@ public sealed class PlanRevision(IPlanStore plans, IAgentIdentity identity, Time
         private AnswerFailure? Insert(Step moving, string afterId, bool chained)
         {
             if (Located(afterId) is not { } requested)
-                return new($"No step with id '{afterId}' to place it after.", Messages.StepIdFrom, FailureTypes.StepNotFound);
+                return Answer.Failed($"No step with id '{afterId}' to place it after.", Messages.StepIdFrom, FailureTypes.StepNotFound);
 
             var anchorId = chained && _tails.TryGetValue(requested.Id, out var tail) ? tail : requested.Id;
 

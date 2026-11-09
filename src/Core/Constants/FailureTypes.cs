@@ -3,14 +3,12 @@ namespace Snail.MCP.Plans.Core.Constants;
 /// <summary>The <c>type</c> of a refusal: the word a program branches on, where the error is prose for the model.</summary>
 /// <remarks>
 /// A contract like a status name: a hook or a script that tells "no plan yet" from "the plan moved" reads this word,
-/// never the error's text, which stays free to reword. Spelled in camel case, as the fleet's failure types are.
+/// never the error's text, which stays free to reword. Spelled in camel case, as the fleet's failure types are. A value
+/// the tool cannot work with — no objective, no steps, a skip without a reason, an unknown outcome — is the SDK's
+/// <c>ToolFailures.Arguments</c>, since to the caller it is the same mistake as an argument that did not bind.
 /// </remarks>
 public static class FailureTypes
 {
-    /// <summary>A value the tool cannot work with: no objective, no steps, a skip without a reason, an unknown outcome.</summary>
-    /// <remarks>The same word the SDK answers for an argument that did not bind, since to the caller both are the same mistake.</remarks>
-    public const string Arguments = "arguments";
-
     /// <summary>This agent has no active plan in the project.</summary>
     public const string NoPlan = "noPlan";
 

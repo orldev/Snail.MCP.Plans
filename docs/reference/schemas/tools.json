@@ -52,6 +52,8 @@
       }
     },
     "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
       "readOnlyHint": true
     },
     "skill": null
@@ -101,7 +103,7 @@
   },
   {
     "name": "revise_plan",
-    "description": "Change the plan when the work turns out different from the draft \u2014 a step missing, a step worded\nwrongly, an order that no longer holds. Revise it rather than quietly walking away from it.\nPass the version you last read; if the plan has changed since, nothing is written and the call is\nrefused with type versionConflict \u2014 read it again. Each change is one of: Add (a new step, at the\nend or after the step named in \u0027after\u0027), Edit (reword a step that has not settled), Skip (take a\nstep out of the work, \u0027reason\u0027 required \u2014 it stays on the record), Reorder (move a step after\nanother, or to the front).\nSteps are never deleted, only Skipped. Optionally pass \u0027summary\u0027 to say where the work stands, and\n\u0027outcome\u0027 to settle the plan: Active (reopen it), Completed, Failed, Abandoned. Left alone, a plan\ncompletes itself once no step is open.",
+    "description": "Change the plan when the work turns out different from the draft \u2014 a step missing, a step worded\nwrongly, an order that no longer holds. Revise it rather than quietly walking away from it.\nPass the version you last read; if the plan has changed since, nothing is written and the call is\nrefused with type versionConflict \u2014 read it again. Each change is one of: Add (a new step, at the\nend or after the step named in \u0027after\u0027), Edit (reword a step that has not settled), Skip (take a\nstep out of the work, \u0027reason\u0027 required \u2014 it stays on the record), Reorder (move a step after\nanother, or to the front).\nSteps are never deleted, only Skipped. Optionally pass \u0027summary\u0027 to say where the work stands, and\n\u0027outcome\u0027 to settle the plan: Active (reopen it), Completed, Failed, Abandoned. Left alone, a plan\ncompletes itself once no step is open.\nAnswers with the plan as it now stands and its new version; the ids of the steps it added are\nprinted first, before the plan.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -192,6 +194,8 @@
       }
     },
     "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
       "readOnlyHint": true
     },
     "skill": null

@@ -2,6 +2,7 @@ using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
 using Snail.MCP.Plans.Core.Formatting;
 using Snail.MCP.Plans.Core.Interfaces;
+using Snail.Sdk.Mcp.Hosting;
 using Snail.Sdk.Mcp.Hosting.Answers;
 
 namespace Snail.MCP.Plans.Application;
@@ -53,15 +54,15 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
         return Answer.Ok(new PrintedPlan(current[0], text));
     }
 
-    private static AnswerFailure PlanNotFound => new(Messages.PlanNotFound, Messages.PlanIdFrom, FailureTypes.PlanNotFound);
+    private static AnswerFailure PlanNotFound => Answer.Failed(Messages.PlanNotFound, Messages.PlanIdFrom, FailureTypes.PlanNotFound);
 
-    private static AnswerFailure StepNotFound => new(Messages.StepNotFound, Messages.StepIdFrom, FailureTypes.StepNotFound);
+    private static AnswerFailure StepNotFound => Answer.Failed(Messages.StepNotFound, Messages.StepIdFrom, FailureTypes.StepNotFound);
 
     /// <remarks>"No plan" and "a plan that cannot be read" call for different actions, and only the count of unread rows tells them apart.</remarks>
     private static AnswerFailure NoPlan(PlanListing read) =>
         read.UnreadablePlans > 0
-            ? new(Messages.CurrentPlanUnreadable, Messages.FixTheRow, FailureTypes.Unreadable)
-            : new(Messages.NoCurrentPlan, Messages.DraftOne, FailureTypes.NoPlan);
+            ? Answer.Failed(Messages.CurrentPlanUnreadable, Messages.FixTheRow, FailureTypes.Unreadable)
+            : Answer.Failed(Messages.NoCurrentPlan, Messages.DraftOne, FailureTypes.NoPlan);
 
     private string Borrowed(Plan plan) =>
         plan.AgentId.Equals(identity.AgentId, StringComparison.OrdinalIgnoreCase)
@@ -80,7 +81,7 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
             return StepNotFound;
 
         if (status is StepStatus.Skipped && string.IsNullOrWhiteSpace(note))
-            return Answer.Failed(Messages.SkipReasonRequired, $"{Messages.SayWhy} in 'note'", FailureTypes.Arguments);
+            return Answer.Failed(Messages.SkipReasonRequired, $"{Messages.SayWhy} in 'note'", ToolFailures.Arguments);
 
         var project = Projects.Resolve(projectName, identity);
         var now = clock.GetUtcNow();
@@ -141,7 +142,7 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
             ? plan.Steps.FirstOrDefault(step => step.Status is StepStatus.InProgress && step.Id != moving.Id)
             : null;
 
-    private static AnswerFailure AlreadyBusy(Step busy) => new(
+    private static AnswerFailure AlreadyBusy(Step busy) => Answer.Failed(
         $"A plan runs one step at a time, and '{busy.Title}' ({busy.Id}) is already {StepStatus.InProgress}.",
         Messages.ReportThatOneFirst,
         FailureTypes.StepInProgress);
@@ -151,9 +152,9 @@ public sealed class PlanProgress(IPlanStore plans, IAgentIdentity identity, Time
         var allowed = Transitions.AllowedFrom(step.Status);
 
         if (allowed.Count is 0)
-            return new($"Step '{step.Title}' is {step.Status}, which is final: it cannot move to {wanted}.", Type: FailureTypes.Settled);
+            return Answer.Failed($"Step '{step.Title}' is {step.Status}, which is final: it cannot move to {wanted}.", type: FailureTypes.Settled);
 
-        return new(
+        return Answer.Failed(
             $"Step '{step.Title}' is {step.Status}, so it cannot move to {wanted}.",
             $"allowed from here: {string.Join(", ", allowed)}",
             FailureTypes.Transition);

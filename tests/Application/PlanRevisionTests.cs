@@ -1,6 +1,7 @@
 using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
 using Snail.MCP.Plans.Tests.TestDoubles;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Plans.Tests.Application;
 
@@ -98,7 +99,7 @@ public class PlanRevisionTests
             plan.Id.ToString(), plan.Version,
             [new StepChange(ChangeKind.Skip, StepId: plan.Steps[0].Id.ToString())]);
 
-        answer.IsRefused(Messages.SkipReasonRequired, FailureTypes.Arguments);
+        answer.IsRefused(Messages.SkipReasonRequired, ToolFailures.Arguments);
     }
 
     [Fact]

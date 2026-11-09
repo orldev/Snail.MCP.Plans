@@ -1,7 +1,7 @@
 name: performance
 
-# Every two months: the benchmarks against benchmarks/baseline/ on a Mac, where the baseline was measured, and
-# Stryker.NET on the tests.
+# Twice a year, in January and July: the benchmarks against benchmarks/baseline/ on a Mac, where the baseline was
+# measured, and Stryker.NET on the tests.
 
 on:
   schedule:

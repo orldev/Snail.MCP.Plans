@@ -3,6 +3,7 @@ using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
 using Snail.MCP.Plans.Core.Interfaces;
 using Snail.MCP.Plans.Tests.TestDoubles;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Plans.Tests.Application;
 
@@ -74,7 +75,7 @@ public class PlanDraftingTests
     {
         using var harness = new PlanHarness();
 
-        (await harness.Drafting.DraftAsync("  ", ["write the store"])).IsRefused(Messages.ObjectiveRequired, FailureTypes.Arguments);
+        (await harness.Drafting.DraftAsync("  ", ["write the store"])).IsRefused(Messages.ObjectiveRequired, ToolFailures.Arguments);
     }
 
     [Fact]
@@ -82,7 +83,7 @@ public class PlanDraftingTests
     {
         using var harness = new PlanHarness();
 
-        (await harness.Drafting.DraftAsync("ship the server", ["", "   "])).IsRefused(Messages.StepsRequired, FailureTypes.Arguments);
+        (await harness.Drafting.DraftAsync("ship the server", ["", "   "])).IsRefused(Messages.StepsRequired, ToolFailures.Arguments);
     }
 
     /// Found in use: a session in another folder called create_plan to look at an existing plan and

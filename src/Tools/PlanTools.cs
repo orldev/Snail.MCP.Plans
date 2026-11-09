@@ -30,7 +30,7 @@ public sealed class PlanTools
         ToolAnswer.From(await drafting.DraftAsync(objective, steps, projectName, cancellationToken), AnswerFields.Of, AnswerShape.None);
 
     /// <summary>Answers with the plan this agent is walking.</summary>
-    [McpServerTool(Name = "get_current_plan", ReadOnly = true), Description(ToolDescriptions.GetCurrentPlan)]
+    [McpServerTool(Name = "get_current_plan", ReadOnly = true, Idempotent = true, OpenWorld = false), Description(ToolDescriptions.GetCurrentPlan)]
     public async Task<CallToolResult> GetCurrentPlanAsync(
         PlanProgress progress,
         [Description(ToolDescriptions.ProjectParam)] string projectName = "",
@@ -62,7 +62,7 @@ public sealed class PlanTools
         ToolAnswer.From(await revision.ReviseAsync(planId, version, changes, summary, outcome, cancellationToken), AnswerFields.Of, AnswerShape.None);
 
     /// <summary>Answers with every active plan and how far along it is.</summary>
-    [McpServerTool(Name = "list_active_plans", ReadOnly = true), Description(ToolDescriptions.ListActivePlans)]
+    [McpServerTool(Name = "list_active_plans", ReadOnly = true, Idempotent = true, OpenWorld = false), Description(ToolDescriptions.ListActivePlans)]
     public async Task<CallToolResult> ListActivePlansAsync(
         ActivePlans active,
         [Description("Narrow to one project. Empty — every project.")] string projectName = "",

@@ -6,11 +6,7 @@
         framework-dependent one for the rest. Plans are files in SQLite only, so Windows is among them.
     -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-    </PropertyGroup>
-
-    <PropertyGroup>
-        <PackageVersion>0.1.0</PackageVersion>
+        <Version>0.1.0</Version>
         <Description>MCP server that holds an agent's plan: the agent drafts steps before starting, walks them in order, marks each done or failed and revises the plan as work goes, while another session asks which plans are active and how far along they are.</Description>
         <PackageTags>mcp;mcp-server;modelcontextprotocol;ai;agent;planning;todo;sqlite</PackageTags>
         <PackageProjectUrl>https://github.com/orldev/Snail.MCP.Plans</PackageProjectUrl>

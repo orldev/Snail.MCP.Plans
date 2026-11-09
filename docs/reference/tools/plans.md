@@ -60,7 +60,7 @@ Pass 'planId' to read any plan, including one another agent walks — that is ho
 from a different folder, which list_active_plans only summarises. Never call create_plan just to
 look: it leaves a second plan behind.
 
-*read-only · every call adds · stays on this machine.*
+*read-only · repeat-safe · stays on this machine.*
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
@@ -163,6 +163,8 @@ another, or to the front).
 Steps are never deleted, only Skipped. Optionally pass 'summary' to say where the work stands, and
 'outcome' to settle the plan: Active (reopen it), Completed, Failed, Abandoned. Left alone, a plan
 completes itself once no step is open.
+Answers with the plan as it now stands and its new version; the ids of the steps it added are
+printed first, before the plan.
 
 *only adds · every call adds · stays on this machine.*
 
@@ -258,7 +260,7 @@ in progress, and how long since it last moved — that age is what shows an agen
 This is the one tool that answers about other agents, not the caller. Answers data.count and
 data.text, which is capped at 20000 characters and says so when cut.
 
-*read-only · every call adds · stays on this machine.*
+*read-only · repeat-safe · stays on this machine.*
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |

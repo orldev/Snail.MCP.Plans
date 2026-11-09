@@ -2,7 +2,18 @@ using Microsoft.Extensions.Hosting;
 using Snail.MCP.Plans.Host.Extensions;
 using Snail.Sdk.Mcp.Hosting;
 
-await McpHost.CreateBuilder(args)
-    .ConfigureMcpServer()
-    .Build()
-    .RunAsync();
+try
+{
+    await McpHost.CreateBuilder(args)
+        .ConfigureMcpServer()
+        .Build()
+        .RunAsync();
+
+    return 0;
+}
+catch (StartRefusedException refused)
+{
+    await Console.Error.WriteLineAsync(refused.Message);
+
+    return 1;
+}

@@ -1,6 +1,7 @@
 using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
 using Snail.MCP.Plans.Tests.TestDoubles;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Plans.Tests.Application;
 
@@ -110,7 +111,7 @@ public class PlanProgressTests
         var plan = await Drafted(harness, "write the store");
 
         (await harness.Progress.AdvanceAsync(plan.Steps[0].Id.ToString(), StepStatus.Skipped))
-            .IsRefused(Messages.SkipReasonRequired, FailureTypes.Arguments);
+            .IsRefused(Messages.SkipReasonRequired, ToolFailures.Arguments);
     }
 
     [Fact]

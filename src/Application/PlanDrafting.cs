@@ -2,6 +2,7 @@ using Snail.MCP.Plans.Core;
 using Snail.MCP.Plans.Core.Constants;
 using Snail.MCP.Plans.Core.Formatting;
 using Snail.MCP.Plans.Core.Interfaces;
+using Snail.Sdk.Mcp.Hosting;
 using Snail.Sdk.Mcp.Hosting.Answers;
 
 namespace Snail.MCP.Plans.Application;
@@ -25,7 +26,7 @@ public sealed class PlanDrafting(IPlanStore plans, IAgentIdentity identity, Time
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(objective))
-            return Answer.Failed(Messages.ObjectiveRequired, type: FailureTypes.Arguments);
+            return Answer.Failed(Messages.ObjectiveRequired, type: ToolFailures.Arguments);
 
         IReadOnlyList<string> titles =
         [
@@ -35,7 +36,7 @@ public sealed class PlanDrafting(IPlanStore plans, IAgentIdentity identity, Time
         ];
 
         if (titles.Count is 0)
-            return Answer.Failed(Messages.StepsRequired, Messages.PassTheSteps, FailureTypes.Arguments);
+            return Answer.Failed(Messages.StepsRequired, Messages.PassTheSteps, ToolFailures.Arguments);
 
         var project = Projects.Resolve(projectName, identity);
         var now = clock.GetUtcNow();
